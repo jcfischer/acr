@@ -24,9 +24,10 @@ import type { GrepResult } from "./types";
 import type { SemanticResult, RankedResult, Tier2Config } from "./tier2-types";
 import { TIER2_CONFIG } from "./tier2-config";
 import { shouldActivateTier2, detectExplicitTrigger } from "./tier2-activation";
-import { constructSemanticQuery } from "./tier2-query";
+import { constructSemanticQuery, generateAnswerFocusedQuery } from "./tier2-query";
 import { ResonaAdapter } from "./resona-adapter";
 import { rankResults } from "./tier2-ranker";
+import type { UnifiedResult } from "./tier2-types";
 
 // ============================================================================
 // Types
@@ -101,8 +102,8 @@ export async function runTier2Semantic(
   }
 
   // Check for explicit trigger phrases first
-  const explicitTrigger = detectExplicitTrigger(prompt);
-  if (explicitTrigger.hasExplicitTrigger) {
+  const hasExplicitTrigger = detectExplicitTrigger(prompt);
+  if (hasExplicitTrigger) {
     return await executeSemanticSearch(
       tier1Result,
       prompt,
@@ -137,7 +138,14 @@ export async function runTier2Semantic(
 // ============================================================================
 
 /**
- * Execute the semantic search pipeline
+ * Execute the semantic search pipeline with multi-query support.
+ *
+ * For recall queries (e.g., "do you remember where we compared X vs Y"),
+ * runs both:
+ * 1. Original query (from prompt key phrases)
+ * 2. Answer-focused query (targets the comparison content itself)
+ *
+ * Results are merged and deduplicated before ranking.
  */
 async function executeSemanticSearch(
   tier1Result: GrepResult,
@@ -150,6 +158,9 @@ async function executeSemanticSearch(
     // Construct semantic query
     const query = constructSemanticQuery(prompt, tier1Result.searchContext, []);
 
+    // Generate answer-focused query for recall/comparison patterns
+    const answerFocusedQuery = generateAnswerFocusedQuery(prompt);
+
     // Create adapter and search
     const adapter = new ResonaAdapter();
 
@@ -160,20 +171,36 @@ async function executeSemanticSearch(
       return createResult([], activationReason, true, startTime);
     }
 
-    // Execute search with timeout
-    const searchPromise = adapter.searchUnified(
-      query.queryText,
-      config.maxResults * 2 // Get more than needed for ranking
+    // Build search promises
+    const searchPromises: Promise<UnifiedResult[]>[] = [];
+
+    // Primary query
+    searchPromises.push(
+      adapter.searchUnified(query.queryText, config.maxResults * 2)
     );
 
+    // Answer-focused query (if available)
+    if (answerFocusedQuery) {
+      searchPromises.push(
+        adapter.searchUnified(answerFocusedQuery, config.maxResults * 2)
+      );
+    }
+
+    // Execute all queries with timeout
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("Search timeout")), config.searchTimeout)
     );
 
-    const unifiedResults = await Promise.race([searchPromise, timeoutPromise]);
+    const allResults = await Promise.race([
+      Promise.all(searchPromises),
+      timeoutPromise,
+    ]);
+
+    // Merge and deduplicate results
+    const mergedResults = mergeSearchResults(allResults as UnifiedResult[][]);
 
     // Rank results
-    const rankedResults = rankResults(unifiedResults, {
+    const rankedResults = rankResults(mergedResults, {
       maxResults: config.maxResults,
       minSimilarity: config.minSimilarity,
     });
@@ -184,6 +211,26 @@ async function executeSemanticSearch(
     console.warn("[ACR Tier 2] Search error:", error);
     return createResult([], activationReason, true, startTime);
   }
+}
+
+/**
+ * Merge multiple search result arrays, deduplicating by source ID.
+ * When duplicates exist, keep the one with higher similarity score.
+ */
+function mergeSearchResults(resultArrays: UnifiedResult[][]): UnifiedResult[] {
+  const byId = new Map<string, UnifiedResult>();
+
+  for (const results of resultArrays) {
+    for (const result of results) {
+      const existing = byId.get(result.id);
+      if (!existing || result.similarity > existing.similarity) {
+        byId.set(result.id, result);
+      }
+    }
+  }
+
+  // Return sorted by similarity (highest first)
+  return Array.from(byId.values()).sort((a, b) => b.similarity - a.similarity);
 }
 
 /**
@@ -208,4 +255,4 @@ function createResult(
 }
 
 // Re-export types for convenience
-export type { SemanticResult, RankedResult, Tier2Options };
+export type { SemanticResult, RankedResult };

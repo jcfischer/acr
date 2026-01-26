@@ -10,6 +10,90 @@ import type { SemanticQuery } from "./tier2-types";
 import { STOPWORDS } from "./config";
 
 // ============================================================================
+// T-3.0: Comparison/Recall Pattern Detection
+// ============================================================================
+
+/**
+ * Patterns that indicate a recall query about comparisons, discussions, etc.
+ * These patterns help extract what the user is looking FOR (the answer content)
+ * rather than what they're ASKING (the question).
+ */
+const RECALL_PATTERNS = [
+  // "do you remember where we compared X vs Y"
+  /(?:remember|recall|find).*(?:compared?|comparison of|versus|vs\.?)\s+(.+?)\s+(?:vs\.?|versus|and|against|with)\s+(.+?)(?:\?|$|\.)/i,
+  // "where did we discuss X and Y"
+  /(?:where|when).*(?:discuss|talk about|analyze|review)\s+(.+?)\s+(?:and|with|versus|vs\.?)\s+(.+?)(?:\?|$|\.)/i,
+  // "what did we decide about X"
+  /(?:what|how).*(?:decide|conclude|determine).*(?:about|regarding|for)\s+(.+?)(?:\?|$|\.)/i,
+  // "the comparison between X and Y"
+  /comparison\s+(?:between|of)\s+(.+?)\s+(?:and|vs\.?|versus)\s+(.+?)(?:\?|$|\.)/i,
+];
+
+/**
+ * Extract comparison/recall subjects from a query.
+ *
+ * When user asks "do you remember where we compared tana-local vs supertag-cli",
+ * this extracts ["tana-local", "supertag-cli"] which should match the actual
+ * comparison content better than the question phrasing.
+ *
+ * @param prompt User's prompt
+ * @returns Array of extracted subjects, or empty if no pattern matches
+ */
+export function extractComparisonSubjects(prompt: string): string[] {
+  const subjects: string[] = [];
+
+  for (const pattern of RECALL_PATTERNS) {
+    const match = prompt.match(pattern);
+    if (match) {
+      // Extract captured groups (the subjects being compared/discussed)
+      for (let i = 1; i < match.length; i++) {
+        if (match[i]) {
+          const subject = match[i].trim();
+          // Clean up and add if substantive
+          if (subject.length >= 2 && !isStopword(subject)) {
+            subjects.push(subject);
+          }
+        }
+      }
+      break; // Use first matching pattern
+    }
+  }
+
+  return subjects;
+}
+
+/**
+ * Generate an enhanced query focused on the answer content rather than the question.
+ *
+ * For comparison queries, this generates a query like:
+ * "tana-local supertag-cli comparison table analysis"
+ *
+ * @param prompt Original user prompt
+ * @returns Enhanced query string, or null if no enhancement possible
+ */
+export function generateAnswerFocusedQuery(prompt: string): string | null {
+  const subjects = extractComparisonSubjects(prompt);
+
+  if (subjects.length === 0) {
+    return null;
+  }
+
+  // Build answer-focused query
+  // Include subjects plus terms likely to appear in comparison content
+  const answerTerms = [
+    ...subjects,
+    "comparison",
+    "versus",
+    "advantage",
+    "capability",
+    "table",
+    "analysis",
+  ];
+
+  return answerTerms.join(" ");
+}
+
+// ============================================================================
 // T-3.1: Key Phrase Extraction
 // ============================================================================
 
@@ -55,6 +139,16 @@ export function extractKeyPhrases(
 
   const phrases: string[] = [];
   const seen = new Set<string>();
+
+  // PRIORITY: Extract comparison subjects first (these are most likely what user is looking for)
+  const comparisonSubjects = extractComparisonSubjects(prompt);
+  for (const subject of comparisonSubjects) {
+    const lower = subject.toLowerCase();
+    if (!seen.has(lower)) {
+      phrases.push(subject);
+      seen.add(lower);
+    }
+  }
 
   // Extract capitalized words (proper nouns)
   const properNouns = prompt.match(/\b[A-Z][a-zA-Z0-9]*\b/g) || [];

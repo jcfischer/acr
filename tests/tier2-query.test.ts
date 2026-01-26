@@ -8,6 +8,8 @@ import { describe, expect, it } from "bun:test";
 import {
   extractKeyPhrases,
   constructSemanticQuery,
+  extractComparisonSubjects,
+  generateAnswerFocusedQuery,
 } from "../src/tier2-query";
 import type { SearchContext } from "../src/types";
 
@@ -142,6 +144,86 @@ describe("ACR Tier 2 Query Construction", () => {
       const query = constructSemanticQuery("Help with project", mockContext, []);
       expect(query.queryText).toBeDefined();
       expect(query.queryText.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("extractComparisonSubjects", () => {
+    it("extracts subjects from 'do you remember where we compared X vs Y'", () => {
+      const subjects = extractComparisonSubjects(
+        "do you remember where we compared tana-local vs supertag-cli?"
+      );
+      expect(subjects).toContain("tana-local");
+      expect(subjects).toContain("supertag-cli");
+    });
+
+    it("extracts subjects from 'where did we discuss X and Y'", () => {
+      const subjects = extractComparisonSubjects(
+        "where did we discuss React and Vue?"
+      );
+      expect(subjects).toContain("React");
+      expect(subjects).toContain("Vue");
+    });
+
+    it("extracts subjects from 'comparison between X and Y'", () => {
+      const subjects = extractComparisonSubjects(
+        "find the comparison between PostgreSQL and MySQL"
+      );
+      expect(subjects).toContain("PostgreSQL");
+      expect(subjects).toContain("MySQL");
+    });
+
+    it("returns empty array when no comparison pattern matches", () => {
+      const subjects = extractComparisonSubjects(
+        "help me with the authentication system"
+      );
+      expect(subjects).toEqual([]);
+    });
+
+    it("handles 'versus' keyword", () => {
+      const subjects = extractComparisonSubjects(
+        "remember our comparison of MongoDB versus Redis?"
+      );
+      expect(subjects).toContain("MongoDB");
+      expect(subjects).toContain("Redis");
+    });
+  });
+
+  describe("generateAnswerFocusedQuery", () => {
+    it("generates answer-focused query for comparison questions", () => {
+      const query = generateAnswerFocusedQuery(
+        "do you remember where we compared tana-local vs supertag-cli?"
+      );
+      expect(query).not.toBeNull();
+      expect(query).toContain("tana-local");
+      expect(query).toContain("supertag-cli");
+      expect(query).toContain("comparison");
+    });
+
+    it("returns null when no comparison pattern matches", () => {
+      const query = generateAnswerFocusedQuery(
+        "help me with the authentication system"
+      );
+      expect(query).toBeNull();
+    });
+
+    it("includes analysis terms for better matching", () => {
+      const query = generateAnswerFocusedQuery(
+        "where did we discuss React and Vue?"
+      );
+      expect(query).not.toBeNull();
+      expect(query).toContain("advantage");
+      expect(query).toContain("table");
+    });
+  });
+
+  describe("extractKeyPhrases with comparison subjects", () => {
+    it("prioritizes comparison subjects in key phrases", () => {
+      const phrases = extractKeyPhrases(
+        "do you remember where we compared tana-local vs supertag-cli?"
+      );
+      // Comparison subjects should be extracted
+      expect(phrases.some((p) => p.toLowerCase().includes("tana-local"))).toBe(true);
+      expect(phrases.some((p) => p.toLowerCase().includes("supertag-cli"))).toBe(true);
     });
   });
 });
