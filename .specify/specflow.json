@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "project": "ACR - Autonomous Contextual Recall",
+  "description": "Tiered context retrieval system for AI assistants based on Arbor Three Principles",
+  "created": "2026-01-26",
+  "features": {
+    "total": 4,
+    "complete": 2,
+    "in_progress": 0,
+    "pending": 2
+  }
+}
