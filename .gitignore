@@ -24,3 +24,8 @@ coverage/
 # Environment
 .env
 .env.local
+
+# SpecFlow database files
+.specflow/*.db
+.specflow/*.db-shm
+.specflow/*.db-wal
