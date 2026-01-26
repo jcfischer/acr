@@ -15,7 +15,9 @@ import {
   type MaestroIndexState,
   type IndexStatus,
   type SyncResult,
+  type SyncResultWithEmbeddings,
   type SyncOptions,
+  type SyncOptionsWithProgress,
   type MaestroEmbeddingInput,
 } from "./maestro-types";
 
@@ -24,6 +26,11 @@ import {
   filterIndexableEntries,
   toEmbeddingInputs,
 } from "./maestro-parser";
+
+import { EmbeddingService } from "./embedding-service";
+import { VectorStore } from "./vector-store";
+import { indexEmbeddings, type IndexableInput } from "./embedding-indexer";
+import { EMBEDDING_CONFIG } from "./embedding-types";
 
 // ============================================================================
 // State Management
@@ -230,14 +237,14 @@ async function indexEntries(
  *
  * @param historyDir - Directory containing history files
  * @param stateFile - Path to state file
- * @param options - Sync options
- * @returns SyncResult with statistics
+ * @param options - Sync options (including optional progress callback)
+ * @returns SyncResultWithEmbeddings with statistics
  */
 export async function syncMaestroIndex(
   historyDir: string,
   stateFile: string,
-  options: SyncOptions = {}
-): Promise<SyncResult> {
+  options: SyncOptionsWithProgress = {}
+): Promise<SyncResultWithEmbeddings> {
   const startTime = Date.now();
 
   // Load current state
@@ -251,6 +258,10 @@ export async function syncMaestroIndex(
   let filesProcessed = 0;
   let filesIndexed = 0;
   let entriesIndexed = 0;
+
+  // Collect all inputs for batch embedding
+  const allInputs: IndexableInput[] = [];
+  const fileToInputs = new Map<string, { changed: ChangedFile; count: number }>();
 
   // Process each changed file
   for (const changed of changedFiles) {
@@ -271,24 +282,65 @@ export async function syncMaestroIndex(
       }
 
       // Convert to embedding inputs
-      const inputs = toEmbeddingInputs(filtered, changed.filename);
+      const maestroInputs = toEmbeddingInputs(filtered, changed.filename);
 
-      // Index the entries
-      const indexed = await indexEntries(inputs);
+      // Convert to unified IndexableInput format
+      const indexableInputs: IndexableInput[] = maestroInputs.map((m) => ({
+        sourceId: m.sourceId,
+        content: m.content,
+        source: "maestro" as const,
+        metadata: {
+          sessionFile: m.sessionFile,
+          entryType: m.entryType,
+          success: m.success,
+          workingDirectory: m.workingDirectory,
+        },
+        timestamp: m.timestamp.getTime(),
+      }));
+
+      allInputs.push(...indexableInputs);
+      fileToInputs.set(changed.filename, { changed, count: indexableInputs.length });
+
+      filesIndexed++;
+      entriesIndexed += indexableInputs.length;
 
       // Update state
       state.indexedFiles[changed.filename] = {
         lastModified: changed.mtime,
-        entryCount: indexed,
+        entryCount: indexableInputs.length,
       };
-
-      filesIndexed++;
-      entriesIndexed += indexed;
     } catch (error) {
       // Log but continue with other files
       if (options.verbose) {
         console.warn(`Failed to index ${changed.filename}:`, error);
       }
+    }
+  }
+
+  // Generate embeddings if not dry run
+  let entriesEmbedded = 0;
+  let embeddingErrors = 0;
+
+  if (allInputs.length > 0 && !options.dryRun) {
+    try {
+      const embeddingService = new EmbeddingService();
+      const vectorStore = new VectorStore(EMBEDDING_CONFIG.dbPath);
+      await vectorStore.initialize();
+
+      const result = await indexEmbeddings(allInputs, embeddingService, vectorStore, {
+        onProgress: options.onProgress,
+      });
+      entriesEmbedded = result.embedded;
+      embeddingErrors = result.failed;
+
+      if (options.verbose && result.errors.length > 0) {
+        console.warn("Embedding errors:", result.errors.slice(0, 5));
+      }
+    } catch (error) {
+      if (options.verbose) {
+        console.warn("Failed to generate embeddings:", error);
+      }
+      embeddingErrors = allInputs.length;
     }
   }
 
@@ -302,6 +354,8 @@ export async function syncMaestroIndex(
     filesProcessed,
     filesIndexed,
     entriesIndexed,
+    entriesEmbedded,
+    embeddingErrors,
     durationMs: Date.now() - startTime,
     fullReindex: options.fullReindex ?? false,
   };
@@ -311,10 +365,23 @@ export async function syncMaestroIndex(
  * Clear the Maestro index.
  *
  * @param stateFile - Path to state file
+ * @param clearEmbeddings - Also clear embeddings from vector store
  */
-export async function clearMaestroIndex(stateFile: string): Promise<void> {
-  // In full implementation, would also clear entries from Resona/LanceDB
+export async function clearMaestroIndex(
+  stateFile: string,
+  clearEmbeddings = false
+): Promise<void> {
   await saveIndexState(stateFile, createEmptyIndexState());
+
+  if (clearEmbeddings) {
+    try {
+      const vectorStore = new VectorStore(EMBEDDING_CONFIG.dbPath);
+      await vectorStore.initialize();
+      await vectorStore.deleteBySource("maestro");
+    } catch {
+      // Ignore errors - vector store may not exist
+    }
+  }
 }
 
 // ============================================================================
@@ -325,11 +392,11 @@ export async function clearMaestroIndex(stateFile: string): Promise<void> {
  * Run incremental sync with default paths.
  *
  * @param options - Sync options
- * @returns SyncResult
+ * @returns SyncResultWithEmbeddings
  */
 export async function runMaestroSync(
   options: SyncOptions = {}
-): Promise<SyncResult> {
+): Promise<SyncResultWithEmbeddings> {
   return syncMaestroIndex(
     options.historyDir ?? MAESTRO_CONFIG.historyDir,
     MAESTRO_CONFIG.stateFile,

@@ -246,6 +246,37 @@ export const SyncOptionsSchema = z.object({
   historyDir: z.string().optional(),
   /** Verbose logging */
   verbose: z.boolean().optional(),
+  /** Skip actual embedding (for testing/dry run) */
+  dryRun: z.boolean().optional(),
 });
 
 export type SyncOptions = z.infer<typeof SyncOptionsSchema>;
+
+/**
+ * Progress callback type for sync operations
+ */
+export type SyncProgressCallback = (
+  current: number,
+  total: number,
+  phase: string
+) => void;
+
+/**
+ * Extended options including progress callback
+ */
+export interface SyncOptionsWithProgress extends SyncOptions {
+  /** Progress callback - receives (current, total, phase) */
+  onProgress?: SyncProgressCallback;
+}
+
+/**
+ * Extended result including embedding stats
+ */
+export interface SyncResultWithEmbeddings extends SyncResult {
+  /** Number of entries embedded (0 if dryRun) */
+  entriesEmbedded: number;
+  /** Number of embedding failures */
+  embeddingErrors: number;
+  /** Error messages if any */
+  errors?: string[];
+}

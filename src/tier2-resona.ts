@@ -38,6 +38,8 @@ import { rankResults } from "./tier2-ranker";
 export interface Tier2Options {
   /** Enable/disable Tier 2 (default: true) */
   enabled?: boolean;
+  /** Force activation regardless of Tier 1 confidence (default: false) */
+  forceActivation?: boolean;
   /** Confidence threshold for activation (default: 0.7) */
   activationThreshold?: number;
   /** Maximum results to return (default: 10) */
@@ -75,6 +77,7 @@ export async function runTier2Semantic(
 
   const {
     enabled = true,
+    forceActivation = false,
     activationThreshold = TIER2_CONFIG.activationThreshold,
     maxResults = TIER2_CONFIG.maxResults,
     minSimilarity = TIER2_CONFIG.minSimilarity,
@@ -84,6 +87,17 @@ export async function runTier2Semantic(
   // Check if disabled via options
   if (!enabled) {
     return createResult([], "disabled", false, startTime);
+  }
+
+  // If force activation is set, skip all gates and execute directly
+  if (forceActivation) {
+    return await executeSemanticSearch(
+      tier1Result,
+      prompt,
+      "forced",
+      { maxResults, minSimilarity, searchTimeout },
+      startTime
+    );
   }
 
   // Check for explicit trigger phrases first
