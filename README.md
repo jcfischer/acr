@@ -1,13 +1,49 @@
 # ACR - Autonomous Contextual Recall
 
-Two-tier architecture for automatic context retrieval in Claude Code sessions.
+> *"The metric is not 'did we find relevant context?' but 'did the AI act like someone who knows you?'"*
+> — ACR Council Debate, January 2026
 
-## Overview
+Two-tier architecture for automatic context retrieval in AI assistant sessions.
 
-ACR automatically detects entities in user prompts and retrieves relevant context from multiple sources:
+## Philosophy
 
-- **Tier 1 (Grep)**: Fast pattern matching for explicit entity mentions
-- **Tier 2 (Resona)**: Semantic search when Tier 1 confidence is low
+ACR is built on the [Arbor Three Principles](https://azmaveth.com/posts/arbor-three-principles/):
+
+### Trust Grows Capability
+
+ACR acts autonomously. It surfaces context proactively rather than waiting to be asked. A system that stays silent until 95% certain is a search engine. A partner who sometimes brings up the wrong memory is still a partner.
+
+When confidence is low, ACR asks rather than guesses—trust is earned through transparency, not hidden autonomy.
+
+### Relationship Cultivates Results
+
+Shared history eliminates re-explanation. ACR remembers previous conversations, preferences, and patterns. When you mention "that security discussion from last month," ACR should understand what you mean—not just pattern-match keywords.
+
+The goal is semantic understanding, not string matching.
+
+### Care Compounds Over Time
+
+Memory accumulates across sessions. ACR doesn't just store facts—it builds understanding of how you think, what connections matter to you, which patterns recur. This compounding is what transforms an assistant into a partner.
+
+Graceful forgetting is wisdom, not a bug. Operational details decay while emotional truth persists.
+
+## Goals
+
+From the [council consensus](https://github.com/jcfischer/kai-improvement-roadmap/blob/main/analysis/2026-01-25-acr-council-debate.md):
+
+1. **Essential infrastructure** — ACR is core functionality, not optional enhancement
+2. **Hybrid retrieval** — Fast grep for explicit matches + semantic search for meaning
+3. **Confidence-based routing** — Escalate between tiers based on match quality
+4. **Transparency by default** — User knows what context was retrieved
+5. **Performance targets** — <50ms grep, <200ms semantic (P95)
+6. **Build on existing systems** — No new infrastructure, orchestrate what exists
+
+### Success Metrics
+
+| Type | Metric |
+|------|--------|
+| Quantitative | Retrieval precision at P95 latency |
+| Qualitative | "Did the AI respond like someone who truly knows you?" |
 
 ## Architecture
 
@@ -17,22 +53,29 @@ User Prompt
      ▼
 ┌─────────────┐
 │   Tier 1    │  Fast grep-based entity detection
-│   (Grep)    │  Searches: project files, user context, Tana exports
+│   (Grep)    │  Searches: project files, user context, exports
 └─────┬───────┘
       │
       ├─── High Confidence (≥0.7) ──→ Return grep matches
       │
       ▼
 ┌─────────────┐
-│   Tier 2    │  Semantic search via Resona embeddings
-│  (Resona)   │  Sources: user docs, session history, Tana
+│   Tier 2    │  Semantic search via embeddings
+│ (Semantic)  │  Sources: user docs, session history
 └─────────────┘
 ```
+
+### Design Principles
+
+- **Grep-first, semantic fallback** — O(1) before O(log n)
+- **Ask when uncertain** — Confidence < 0.7 prompts clarification
+- **Visible context indicators** — `[context: source, confidence]`
+- **Graceful degradation** — Missing dependencies return empty, not errors
 
 ## Quick Start
 
 ```typescript
-import { runTier1Grep, runTier2Semantic } from './acr';
+import { runTier1Grep, runTier2Semantic } from 'acr';
 
 // Tier 1: Fast grep search
 const tier1Result = await runTier1Grep(prompt, projectPath);
@@ -62,7 +105,6 @@ if (tier1Result.escalateToTier2) {
 |------|---------|
 | `tier1-grep.ts` | Main grep orchestration |
 | `entity-extractor.ts` | NLP-based entity extraction |
-| `context-loader.ts` | Load user/project context |
 | `config.ts` | Tier 1 configuration |
 | `types.ts` | Shared type definitions |
 
@@ -79,7 +121,7 @@ Tier 2 activates when:
 
 ### Pipeline
 ```
-Activation Gate → Query Construction → Resona Search → Result Ranking
+Activation Gate → Query Construction → Semantic Search → Result Ranking
 ```
 
 ### Files
@@ -90,7 +132,7 @@ Activation Gate → Query Construction → Resona Search → Result Ranking
 | `tier2-config.ts` | Configuration + trigger phrases |
 | `tier2-activation.ts` | Activation decision logic |
 | `tier2-query.ts` | Semantic query construction |
-| `resona-adapter.ts` | Resona library integration |
+| `resona-adapter.ts` | Embedding service integration |
 | `session-indexer.ts` | Session history parsing |
 | `tier2-ranker.ts` | Result ranking + deduplication |
 
@@ -98,7 +140,7 @@ Activation Gate → Query Construction → Resona Search → Result Ranking
 Results are boosted by source type:
 - **User context**: +0.1 (highest priority)
 - **Session history**: +0.05
-- **Tana exports**: +0.0 (baseline)
+- **Exports**: +0.0 (baseline)
 
 ### Configuration
 
@@ -124,9 +166,9 @@ Tier 2 is designed to fail gracefully:
 
 | Failure | Behavior |
 |---------|----------|
-| Ollama not running | Returns empty results, logs warning |
-| LanceDB unavailable | Returns empty results, logs error |
-| bge-m3 not pulled | Returns empty results, suggests fix |
+| Embedding service unavailable | Returns empty results, logs warning |
+| Vector DB unavailable | Returns empty results, logs error |
+| Model not available | Returns empty results, suggests fix |
 | Search timeout | Returns partial/empty results |
 | Any exception | Returns empty results, logs error |
 
@@ -134,13 +176,13 @@ Tier 2 is designed to fail gracefully:
 
 ```bash
 # Run all ACR tests
-cd ~/.claude/skills/CORE && bun test tests/acr/
+bun test
 
 # Run Tier 1 tests only
-bun test tests/acr/tier1-*.test.ts
+bun test tests/tier1-*.test.ts
 
 # Run Tier 2 tests only
-bun test tests/acr/tier2-*.test.ts
+bun test tests/tier2-*.test.ts
 ```
 
 ### Test Coverage
@@ -148,30 +190,21 @@ bun test tests/acr/tier2-*.test.ts
 - **Tier 2**: 114 tests
 - **Total**: 208 tests
 
-## Dependencies
-
-| Dependency | Purpose | Fallback |
-|------------|---------|----------|
-| Resona (`~/work/resona`) | Embedding service | Return empty |
-| Ollama | Host bge-m3 model | Return empty |
-| LanceDB | Vector storage | Return empty |
-
 ## Performance Targets
 
 | Metric | Target |
 |--------|--------|
-| P95 latency | <200ms |
-| P99 latency | <500ms |
+| P95 latency (Tier 1) | <50ms |
+| P95 latency (Tier 2) | <200ms |
 | Memory | <50MB |
 
-## Feature Flags
+## Future: Forgetting Policies (v2)
 
-Disable Tier 2 completely:
-```bash
-export ACR_TIER2_ENABLED=false
-```
+Per council consensus, future versions will implement:
+- Explicit TTL for operational context (30-day half-life)
+- Preserve "emotional truth" longer than details
+- Graceful forgetting as a feature, not a bug
 
-Disable all ACR:
-```bash
-export ACR_ENABLED=false
-```
+## License
+
+MIT
