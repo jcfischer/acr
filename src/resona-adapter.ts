@@ -216,10 +216,22 @@ export class ResonaAdapter {
 
   /**
    * Parse source type from source ID.
+   *
+   * Source ID formats:
+   * - user/file.md -> "user"
+   * - session/123 -> "session"
+   * - tana/nodeId -> "tana"
+   * - maestro:fileId:index -> "maestro"
+   * - maestro -> "maestro" (when sourceId is just the source type)
    */
   private parseSourceType(sourceId: string): SourceType {
+    // Check for maestro format (uses colon separator or is just "maestro")
+    if (sourceId.startsWith("maestro:") || sourceId === "maestro") {
+      return "maestro";
+    }
+
     const type = sourceId.split("/")[0];
-    if (type === "user" || type === "session" || type === "tana") {
+    if (type === "user" || type === "session" || type === "tana" || type === "maestro") {
       return type;
     }
     return "user"; // Default to user

@@ -11,7 +11,7 @@ import { z } from "zod";
 // Source Type - Shared enum for data sources
 // ============================================================================
 
-export const SourceTypeSchema = z.enum(["user", "session", "tana"]);
+export const SourceTypeSchema = z.enum(["user", "session", "tana", "maestro"]);
 export type SourceType = z.infer<typeof SourceTypeSchema>;
 
 // ============================================================================

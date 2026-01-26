@@ -127,3 +127,263 @@ export type { SessionEntry, SessionSynopsis } from "./session-indexer";
 
 // Configuration
 export { TIER2_CONFIG, isTriggerPhrase } from "./tier2-config";
+
+// ============================================================================
+// Tier 3 - Context Injection
+// ============================================================================
+
+// Main entry point
+export { runContextInjection, handleAskResponse, handleAutoInjection, wouldProduceContext, getConfidenceSummary } from "./tier3-injection";
+export type { InjectionOptions } from "./tier3-injection";
+
+// Types
+export type {
+  InjectionAction,
+  InjectionDecision,
+  ContextSource,
+  FormattedContext,
+  AskOption,
+  AskQuestion,
+  AskPatternRequest,
+  SessionACRState,
+  Tier3Config,
+  InjectionResult,
+} from "./tier3-types";
+
+export {
+  SOURCE_PRIORITY,
+  InjectionActionSchema,
+  InjectionDecisionSchema,
+  ContextSourceSchema,
+  FormattedContextSchema,
+  AskOptionSchema,
+  AskQuestionSchema,
+  AskPatternRequestSchema,
+  SessionACRStateSchema,
+  Tier3ConfigSchema,
+  InjectionResultSchema,
+  createEmptyInjectionResult,
+  createSessionACRState,
+  createDefaultTier3Config,
+  getSourcePriority,
+} from "./tier3-types";
+
+// Confidence routing
+export {
+  shouldInjectAutomatically,
+  shouldAskUser,
+  isEntityRejected,
+  isSourceApproved,
+  classifyDecision,
+  classifyTier1Matches,
+  classifyTier2Results,
+  filterByAction,
+  getAutoInjectDecisions,
+  getAskDecisions,
+  getSkipDecisions,
+} from "./tier3-confidence-router";
+
+// Context formatting
+export {
+  entityMatchToContextSource,
+  rankedResultToContextSource,
+  formatSingleContext,
+  formatMultipleContexts,
+  formatTruncationIndicator,
+  createFormattedContext,
+  deduplicateSources,
+  mergeSources,
+  extractPreview,
+} from "./tier3-formatter";
+
+// Token budget
+export {
+  countTokens,
+  countTokensMultiple,
+  enforceTokenBudget,
+  truncateSource,
+  fitsInBudget,
+  remainingBudget,
+  isBudgetExhausted,
+  addTokenCounts,
+  getTotalTokenCount,
+  getBudgetSummary,
+} from "./tier3-token-budget";
+export type { BudgetEnforcementResult } from "./tier3-token-budget";
+
+// Session state
+export {
+  initSessionState,
+  parseSessionState,
+  rejectEntity,
+  isRejected,
+  unrejectEntity,
+  approveSource,
+  isApproved,
+  unapproveSource,
+  getApprovalTime,
+  recordInjection,
+  getInjectionCount,
+  getTotalTokensInjected,
+  getSessionDuration,
+  getSessionDurationMinutes,
+  getStateSummary,
+  serializeState,
+  deserializeState,
+  resetState,
+  resetRejections,
+  resetApprovals,
+} from "./tier3-session-state";
+
+// Ask pattern
+export {
+  generateAskPattern,
+  generateQuestion,
+  generateMultiSourceAskPattern,
+  parseAskResponse,
+  isAcceptResponse,
+  isRejectResponse,
+  isPreviewResponse,
+  formatSourceForDisplay,
+  formatTimeAgo,
+  calculateDaysAgo,
+  isValidAskPattern,
+} from "./tier3-ask-pattern";
+export type { AskResponse } from "./tier3-ask-pattern";
+
+// ============================================================================
+// Tier 4 - Forgetting Policies (Temporal Decay)
+// ============================================================================
+
+// Types
+export type {
+  ContentType,
+  ContentMetadata,
+  DecayedResult,
+  Tier4Config,
+  DecayOptions,
+} from "./tier4-types";
+
+export {
+  ContentTypeSchema,
+  ContentMetadataSchema,
+  DecayedResultSchema,
+  Tier4ConfigSchema,
+  DecayOptionsSchema,
+  HALF_LIFE_DAYS,
+  createDefaultTier4Config,
+  getHalfLife,
+  createDecayedResult,
+} from "./tier4-types";
+
+// Decay calculation
+export {
+  calculateDecayFactor,
+  applyTemporalDecay,
+  calculateAgeDays,
+  calculateAgeDaysFromTimestamp,
+  applyDecayWithMetadata,
+  applyDecaySimple,
+  applyDecayBatch,
+  shouldArchive,
+  daysUntilConfidence,
+  getDecaySummary,
+} from "./tier4-decay";
+
+// Content type classification
+export {
+  classifyByPath,
+  classifyBySourceType,
+  classifyContent,
+  getHalfLifeForPath,
+  getHalfLifeForSourceType,
+  isValidContentType,
+  parseContentType,
+  getContentTypeDescription,
+  getContentTypesByHalfLife,
+} from "./tier4-content-type";
+
+// Metadata parsing
+export {
+  extractFrontmatter,
+  parseFrontmatterDate,
+  parseTTL,
+  getFileTimestamps,
+  extractMetadata,
+  extractMetadataSync,
+  createDefaultMetadata,
+  isPermanent,
+  usesDefaultDecay,
+  hasExplicitExpiration,
+  getExpirationDate,
+  isExpired,
+} from "./tier4-metadata";
+
+// Integration with Tier 1 and Tier 2
+export type {
+  DecayedEntityMatch,
+  DecayedRankedResult,
+  DecayedGrepResult,
+} from "./tier4-integration";
+
+export {
+  applyDecayToMatch,
+  applyDecayToMatches,
+  applyDecayToMatchesSync,
+  applyDecayToRankedResult,
+  applyDecayToRankedResults,
+  applyDecayToRankedResultsSync,
+  applyDecayToUnifiedResult,
+  aggregateDecayedConfidence,
+  shouldEscalateWithDecay,
+  getCurrentTimestamp,
+  timestampDaysAgo,
+  getDecayStats,
+} from "./tier4-integration";
+
+// ============================================================================
+// Maestro Session Indexing (F-005)
+// ============================================================================
+
+// Types
+export type {
+  MaestroEntryType,
+  MaestroEntry,
+  MaestroHistoryFile,
+  MaestroEmbeddingInput,
+  MaestroIndexState,
+  MaestroFileState,
+} from "./maestro-types";
+
+export {
+  MaestroEntryTypeSchema,
+  MaestroEntrySchema,
+  MaestroHistoryFileSchema,
+  MaestroEmbeddingInputSchema,
+  MaestroFileStateSchema,
+  MaestroIndexStateSchema,
+  MAESTRO_CONFIG,
+  generateSourceId,
+  parseSourceId,
+  createEmptyIndexState,
+} from "./maestro-types";
+
+// Parser
+export {
+  parseMaestroHistoryFile,
+  parseHistoryDirectory,
+  filterIndexableEntries,
+  toEmbeddingInputs,
+  isValidMaestroFile,
+} from "./maestro-parser";
+
+// Indexer
+export type { SyncOptions, SyncResult } from "./maestro-indexer";
+
+export {
+  loadIndexState,
+  saveIndexState,
+  detectChangedFiles,
+  syncMaestroIndex,
+  clearMaestroIndex,
+} from "./maestro-indexer";

@@ -21,7 +21,7 @@
     "description": "Hook integration to inject retrieved context into Claude sessions",
     "dependencies": ["F-001", "F-002"],
     "priority": 3,
-    "status": "pending"
+    "status": "complete"
   },
   {
     "id": "F-004",
@@ -29,6 +29,14 @@
     "description": "Temporal decay and TTL policies for graceful context forgetting",
     "dependencies": ["F-001", "F-002"],
     "priority": 4,
-    "status": "pending"
+    "status": "complete"
+  },
+  {
+    "id": "F-005",
+    "name": "Maestro Session Indexing",
+    "description": "Semantic embedding of Maestro session history for cross-session recall",
+    "dependencies": ["F-002"],
+    "priority": 5,
+    "status": "specified"
   }
 ]

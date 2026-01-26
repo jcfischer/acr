@@ -188,7 +188,10 @@ bun test tests/tier2-*.test.ts
 ### Test Coverage
 - **Tier 1**: 94 tests
 - **Tier 2**: 114 tests
-- **Total**: 208 tests
+- **Tier 3**: 200+ tests
+- **Tier 4**: 100+ tests
+- **Maestro**: 67 tests
+- **Total**: 618 tests
 
 ## Performance Targets
 
@@ -197,6 +200,87 @@ bun test tests/tier2-*.test.ts
 | P95 latency (Tier 1) | <50ms |
 | P95 latency (Tier 2) | <200ms |
 | Memory | <50MB |
+
+## Maestro Session Indexing (F-005)
+
+ACR can index Maestro desktop app session history for cross-session recall. This enables semantic search across previous coding sessions.
+
+### Location
+Maestro stores session history in:
+```
+~/Library/Application Support/maestro/history/*.json
+```
+
+### Usage (Programmatic)
+
+```typescript
+import {
+  syncMaestroIndex,
+  clearMaestroIndex,
+  loadIndexState,
+  MAESTRO_CONFIG,
+} from 'acr';
+
+// Incremental sync (only changed files)
+const result = await syncMaestroIndex(
+  MAESTRO_CONFIG.historyDir,
+  MAESTRO_CONFIG.stateFile
+);
+console.log(`Indexed ${result.entriesIndexed} new entries`);
+
+// Full reindex (ignore previous state)
+const fullResult = await syncMaestroIndex(
+  MAESTRO_CONFIG.historyDir,
+  MAESTRO_CONFIG.stateFile,
+  { full: true }
+);
+
+// Clear index and state
+await clearMaestroIndex(MAESTRO_CONFIG.stateFile);
+
+// Check index status
+const state = await loadIndexState(MAESTRO_CONFIG.stateFile);
+console.log(`Total entries indexed: ${state.totalEntries}`);
+console.log(`Files tracked: ${Object.keys(state.files).length}`);
+```
+
+### Configuration
+
+```typescript
+// Default config in maestro-types.ts
+MAESTRO_CONFIG = {
+  historyDir: "~/Library/Application Support/maestro/history",
+  stateFile: "~/.config/acr/maestro-index-state.json",
+  minSummaryLength: 10,   // Entries shorter than this are skipped
+  batchSize: 100,         // Entries per embedding batch
+  minSimilarity: 0.70,    // Minimum similarity for search results
+  maxResults: 5,          // Max maestro results to return
+}
+```
+
+### Files
+| File | Purpose |
+|------|---------|
+| `maestro-types.ts` | Type definitions and Zod schemas |
+| `maestro-parser.ts` | History file parsing and filtering |
+| `maestro-indexer.ts` | Incremental sync and state management |
+
+### Source ID Format
+Maestro results use this source ID format:
+```
+maestro:{sessionFileId}:{entryIndex}
+```
+
+Example: `maestro:abc123-def456:42` refers to entry index 42 in session file `abc123-def456.json`.
+
+### Graceful Degradation
+
+| Failure | Behavior |
+|---------|----------|
+| History dir missing | Returns empty, logs warning |
+| Malformed JSON file | Skips file, continues with others |
+| Ollama unavailable | Queues for later, no crash |
+| Missing summary field | Entry skipped |
 
 ## Future: Forgetting Policies (v2)
 

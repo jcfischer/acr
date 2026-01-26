@@ -79,7 +79,7 @@ describe("ACR Tier 2 Types", () => {
       const valid = SemanticQuerySchema.safeParse({
         queryText: "test",
         projectContext: "proj",
-        sourcePreference: ["user", "session", "tana"],
+        sourcePreference: ["user", "session", "tana", "maestro"],
       });
       expect(valid.success).toBe(true);
 
@@ -134,7 +134,7 @@ describe("ACR Tier 2 Types", () => {
     });
 
     it("validates source enum values", () => {
-      for (const source of ["user", "session", "tana"]) {
+      for (const source of ["user", "session", "tana", "maestro"]) {
         const result = UnifiedResultSchema.safeParse({
           id: "doc_1",
           content: "test",
@@ -153,6 +153,22 @@ describe("ACR Tier 2 Types", () => {
         similarity: 0.5,
       });
       expect(invalid.success).toBe(false);
+    });
+
+    it("validates maestro source type", () => {
+      const maestroResult = UnifiedResultSchema.safeParse({
+        id: "maestro:abc123:0",
+        content: "Refactored API endpoints",
+        source: "maestro",
+        sourceId: "maestro:abc123:0",
+        similarity: 0.82,
+        metadata: {
+          timestamp: "2026-01-25T14:30:00Z",
+          entryType: "USER",
+          sessionFile: "abc123.json",
+        },
+      });
+      expect(maestroResult.success).toBe(true);
     });
   });
 

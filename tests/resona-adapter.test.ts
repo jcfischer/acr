@@ -193,5 +193,47 @@ describe("ACR Tier 2 Resona Adapter", () => {
       adapter.unregisterSource("temp");
       expect(adapter.hasSource("temp")).toBe(false);
     });
+
+    it("can register maestro source", () => {
+      const adapter = createResonaAdapter();
+      adapter.registerSource({
+        sourceId: "maestro",
+        description: "Maestro session history",
+        search: async () => [],
+      });
+
+      expect(adapter.hasSource("maestro")).toBe(true);
+      expect(adapter.listSources()).toContain("maestro");
+    });
+  });
+
+  describe("parseSourceType with maestro", () => {
+    it("parses maestro source type from sourceId", async () => {
+      const adapter = createResonaAdapter();
+
+      // Register a maestro source that returns results
+      adapter.registerSource({
+        sourceId: "maestro",
+        description: "Maestro session history",
+        search: async (query: string, k: number) => [
+          {
+            id: "maestro:abc123:0",
+            similarity: 0.85,
+            contextText: "Refactored API endpoints",
+            metadata: {
+              timestamp: "2026-01-25T14:30:00Z",
+              entryType: "USER",
+              sessionFile: "abc123.json",
+            },
+          },
+        ],
+      });
+
+      const results = await adapter.searchUnified("refactor", 10);
+
+      expect(results.length).toBe(1);
+      expect(results[0].source).toBe("maestro");
+      expect(results[0].sourceId).toBe("maestro");
+    });
   });
 });
