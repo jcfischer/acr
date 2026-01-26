@@ -4,6 +4,9 @@
   "description": "Autonomous Contextual Recall - Tiered context retrieval for AI assistants",
   "type": "module",
   "main": "src/index.ts",
+  "bin": {
+    "acr": "./src/cli.ts"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./tier1": "./src/tier1-grep.ts",

@@ -74,6 +74,28 @@ User Prompt
 
 ## Quick Start
 
+### CLI
+
+```bash
+# Install: symlink to ~/bin
+ln -sf /path/to/acr/src/cli.ts ~/bin/acr
+
+# Search for context
+acr "Daniel's project preferences"
+
+# Force Tier 2 semantic search
+acr --tier2 "remember that security discussion"
+
+# Index Maestro session history
+acr --index-maestro
+acr --index-maestro-full  # Full reindex
+
+# Check status
+acr --status
+```
+
+### Library
+
 ```typescript
 import { runTier1Grep, runTier2Semantic } from 'acr';
 
