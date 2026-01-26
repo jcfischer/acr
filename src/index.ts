@@ -122,8 +122,46 @@ export { rankResults, deduplicateResults, computeDedupHash } from "./tier2-ranke
 export { ResonaAdapter } from "./resona-adapter";
 
 // Session indexer
-export { parseSessionHistory, extractSynopsis } from "./session-indexer";
-export type { SessionEntry, SessionSynopsis } from "./session-indexer";
+export {
+  loadIndexState as loadSessionIndexState,
+  saveIndexState as saveSessionIndexState,
+  shouldReindexSession,
+  getChangedSessions,
+  syncSessionIndex,
+  clearSessionIndex,
+  getSessionIndexStatus,
+} from "./session-indexer";
+
+// Session types
+export type {
+  ParsedTurn,
+  ParsedSession,
+  SessionEmbeddingInput,
+  IndexedSessionState,
+  SessionIndexState,
+  SyncOptions as SessionSyncOptions,
+  SyncResultWithEmbeddings as SessionSyncResult,
+} from "./session-types";
+
+export {
+  SESSION_CONFIG,
+  ParsedTurnSchema,
+  ParsedSessionSchema,
+  SessionEmbeddingInputSchema,
+  IndexedSessionStateSchema,
+  SessionIndexStateSchema,
+  createEmptyIndexState as createEmptySessionIndexState,
+  generateSourceId as generateSessionSourceId,
+} from "./session-types";
+
+// Session parser
+export {
+  scanSessionFiles,
+  parseSessionFile,
+  toEmbeddingInputs as toSessionEmbeddingInputs,
+  filterTurnsForEmbedding,
+} from "./session-parser";
+export type { SessionFileInfo } from "./session-parser";
 
 // Configuration
 export { TIER2_CONFIG, isTriggerPhrase } from "./tier2-config";
@@ -352,7 +390,11 @@ export type {
   MaestroHistoryFile,
   MaestroEmbeddingInput,
   MaestroIndexState,
-  MaestroFileState,
+  IndexedFileState,
+  SyncOptions,
+  SyncResult,
+  SyncResultWithEmbeddings,
+  IndexStatus,
 } from "./maestro-types";
 
 export {
@@ -360,13 +402,17 @@ export {
   MaestroEntrySchema,
   MaestroHistoryFileSchema,
   MaestroEmbeddingInputSchema,
-  MaestroFileStateSchema,
+  IndexedFileStateSchema,
   MaestroIndexStateSchema,
+  SyncOptionsSchema,
+  SyncResultSchema,
+  IndexStatusSchema,
   MAESTRO_CONFIG,
   generateSourceId,
-  parseSourceId,
   createEmptyIndexState,
+  createEmbeddingInput,
 } from "./maestro-types";
+export type { SyncProgressCallback, SyncOptionsWithProgress } from "./maestro-types";
 
 // Parser
 export {
@@ -378,12 +424,118 @@ export {
 } from "./maestro-parser";
 
 // Indexer
-export type { SyncOptions, SyncResult } from "./maestro-indexer";
-
 export {
   loadIndexState,
   saveIndexState,
-  detectChangedFiles,
+  getChangedFiles,
+  shouldReindexFile,
   syncMaestroIndex,
   clearMaestroIndex,
+  getMaestroIndexStatus,
+  runMaestroSync,
+  runMaestroStatus,
+  runMaestroClear,
 } from "./maestro-indexer";
+export type { ChangedFile } from "./maestro-indexer";
+
+// ============================================================================
+// PAI Memory Indexing (F-006)
+// ============================================================================
+
+// Types
+export type {
+  MemoryCaptureType,
+  MemoryEntry,
+  MemoryEmbeddingInput,
+  MemoryFileState,
+  MemoryIndexState,
+} from "./memory-types";
+
+export {
+  MemoryCaptureTypeSchema,
+  MemoryEntrySchema,
+  MemoryEmbeddingInputSchema,
+  MemoryFileStateSchema,
+  MemoryIndexStateSchema,
+  MEMORY_CONFIG,
+  generateSourceId as generateMemorySourceId,
+  parseSourceId as parseMemorySourceId,
+  createEmptyIndexState as createEmptyMemoryIndexState,
+  captureTypeFromPath,
+} from "./memory-types";
+
+// Parser
+export {
+  extractFrontmatter as extractMemoryFrontmatter,
+  parseFrontmatterTimestamp,
+  extractTitle,
+  parseMemoryFile,
+  scanMemoryDirectory,
+  scanAllMemoryDirectories,
+  toEmbeddingInputs as toMemoryEmbeddingInputs,
+} from "./memory-parser";
+
+// Indexer
+export type { MemorySyncConfig, MemorySyncResult, MemorySyncResultWithEmbeddings, ChangeDetectionResult } from "./memory-indexer";
+
+export {
+  loadIndexState as loadMemoryIndexState,
+  saveIndexState as saveMemoryIndexState,
+  detectChanges,
+  syncMemoryIndex,
+  clearMemoryIndex,
+} from "./memory-indexer";
+
+// ============================================================================
+// Resona Integration (F-007)
+// ============================================================================
+
+// Embedding Types
+export type {
+  EmbeddingSource,
+  EmbeddingInput,
+  EmbeddingRecord,
+  EmbeddingConfig,
+} from "./embedding-types";
+
+export {
+  EmbeddingSourceSchema,
+  EmbeddingInputSchema,
+  EmbeddingRecordSchema,
+  EmbeddingConfigSchema,
+  EMBEDDING_CONFIG,
+  createDefaultConfig as createDefaultEmbeddingConfig,
+  validateConfig as validateEmbeddingConfig,
+} from "./embedding-types";
+
+// Embedding Service
+export { EmbeddingService } from "./embedding-service";
+export type { EmbeddingServiceConfig } from "./embedding-service";
+
+// Vector Store
+export { VectorStore } from "./vector-store";
+export type {
+  EmbeddingStoreRecord,
+  SearchResult as VectorSearchResult,
+  TableStats,
+  SearchFilter,
+} from "./vector-store";
+
+// Embedding Indexer
+export { indexEmbeddings } from "./embedding-indexer";
+export type { IndexableInput, IndexingResult, IndexingOptions } from "./embedding-indexer";
+
+// Resona Adapter (enhanced)
+export type { VectorSearchOptions } from "./resona-adapter";
+
+// Progress Bar Utility
+export {
+  formatProgressBar,
+  createCliProgressReporter,
+  Spinner,
+} from "./progress";
+export type {
+  ProgressBarOptions,
+  ProgressReporter,
+  ProgressCallback,
+} from "./progress";

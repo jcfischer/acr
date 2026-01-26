@@ -209,10 +209,14 @@ describe("ACR Tier 2 Resona Adapter", () => {
 
   describe("parseSourceType with maestro", () => {
     it("parses maestro source type from sourceId", async () => {
-      const adapter = createResonaAdapter();
+      // Disable adapter to avoid vector search interfering with this test
+      const adapter = createResonaAdapter({ enabled: false });
+
+      // Re-enable just for this test by creating a fresh adapter with sources
+      const testAdapter = createResonaAdapter();
 
       // Register a maestro source that returns results
-      adapter.registerSource({
+      testAdapter.registerSource({
         sourceId: "maestro",
         description: "Maestro session history",
         search: async (query: string, k: number) => [
@@ -229,11 +233,60 @@ describe("ACR Tier 2 Resona Adapter", () => {
         ],
       });
 
-      const results = await adapter.searchUnified("refactor", 10);
+      // Mock searchVector to return empty (we only want to test source parsing)
+      testAdapter.searchVector = mock(() => Promise.resolve([]));
+
+      const results = await testAdapter.searchUnified("refactor", 10);
 
       expect(results.length).toBe(1);
       expect(results[0].source).toBe("maestro");
       expect(results[0].sourceId).toBe("maestro");
+    });
+  });
+
+  describe("parseSourceType with memory", () => {
+    it("parses memory source type from memory:TYPE:filename format", async () => {
+      const adapter = createResonaAdapter();
+
+      // Register a memory source that returns results
+      adapter.registerSource({
+        sourceId: "memory:LEARNING:test-file",
+        description: "PAI Memory - Learnings",
+        search: async (query: string, k: number) => [
+          {
+            id: "memory:LEARNING:test-file",
+            similarity: 0.92,
+            contextText: "Learned about MCP server patterns",
+            metadata: {
+              captureType: "LEARNING",
+              timestamp: Date.now(),
+              filePath: "/Users/test/.claude/MEMORY/Learning/test-file.md",
+            },
+          },
+        ],
+      });
+
+      // Mock searchVector to return empty (we only want to test source parsing)
+      adapter.searchVector = mock(() => Promise.resolve([]));
+
+      const results = await adapter.searchUnified("MCP patterns", 10);
+
+      expect(results.length).toBe(1);
+      expect(results[0].source).toBe("memory");
+      expect(results[0].sourceId).toBe("memory:LEARNING:test-file");
+    });
+
+    it("can register memory source", () => {
+      const adapter = createResonaAdapter();
+
+      adapter.registerSource({
+        sourceId: "memory",
+        description: "PAI Memory",
+        search: async () => [],
+      });
+
+      expect(adapter.hasSource("memory")).toBe(true);
+      expect(adapter.listSources()).toContain("memory");
     });
   });
 });

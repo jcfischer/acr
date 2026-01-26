@@ -7,6 +7,9 @@
 
 import type { UnifiedResult, SourceType } from "./tier2-types";
 import { TIER2_CONFIG } from "./tier2-config";
+import { EmbeddingService } from "./embedding-service";
+import { VectorStore, type SearchFilter, type SearchResult as VectorSearchResult } from "./vector-store";
+import { EMBEDDING_CONFIG } from "./embedding-types";
 
 // ============================================================================
 // Types
@@ -48,6 +51,14 @@ export interface ResonaAdapterConfig {
   enabled?: boolean;
 }
 
+/**
+ * Vector search options
+ */
+export interface VectorSearchOptions {
+  limit?: number;
+  source?: "maestro" | "memory";
+}
+
 // ============================================================================
 // ResonaAdapter Class
 // ============================================================================
@@ -65,6 +76,8 @@ export class ResonaAdapter {
   private sources: Map<string, SearchSource> = new Map();
   private config: ResonaAdapterConfig;
   private initialized: boolean = false;
+  private embeddingService: EmbeddingService | null = null;
+  private vectorStore: VectorStore | null = null;
 
   constructor(config: ResonaAdapterConfig = {}) {
     this.config = {
@@ -75,7 +88,75 @@ export class ResonaAdapter {
   }
 
   /**
-   * Search across all registered sources.
+   * Initialize embedding service and vector store.
+   * Must be called before using vector search methods.
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+
+    this.embeddingService = new EmbeddingService();
+    this.vectorStore = new VectorStore(
+      this.config.embeddingDbPath || EMBEDDING_CONFIG.dbPath
+    );
+    await this.vectorStore.initialize();
+    this.initialized = true;
+  }
+
+  /**
+   * Search using vector embeddings.
+   *
+   * @param query Search query text
+   * @param options Search options (limit, source filter)
+   * @returns Array of UnifiedResult
+   */
+  async searchVector(
+    query: string,
+    options: VectorSearchOptions = {}
+  ): Promise<UnifiedResult[]> {
+    if (!this.config.enabled) {
+      return [];
+    }
+
+    // Initialize if needed
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
+    if (!this.embeddingService || !this.vectorStore) {
+      return [];
+    }
+
+    try {
+      // Generate embedding for query
+      const queryVector = await this.embeddingService.embed(query);
+      if (!queryVector) {
+        return [];
+      }
+
+      // Build filter
+      const filter: SearchFilter | undefined = options.source
+        ? { source: options.source }
+        : undefined;
+
+      // Search vector store
+      const results = await this.vectorStore.search(
+        queryVector,
+        options.limit || 10,
+        filter
+      );
+
+      // Convert to UnifiedResult
+      return results.map((r) => this.vectorResultToUnified(r));
+    } catch (error) {
+      console.error("[ACR Tier2] Vector search failed:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Search across all registered sources AND the vector store.
    *
    * @param query Search query text
    * @param limit Maximum results to return
@@ -110,6 +191,15 @@ export class ResonaAdapter {
         allResults.push(...results);
       }
 
+      // Also search the vector store for embeddings
+      try {
+        const vectorResults = await this.searchVector(query, { limit });
+        allResults.push(...vectorResults);
+      } catch (error) {
+        // Vector search is optional, log but don't fail
+        console.warn("[ACR Tier2] Vector search failed:", error);
+      }
+
       // Sort by similarity descending and limit
       return allResults
         .sort((a, b) => b.similarity - a.similarity)
@@ -131,8 +221,34 @@ export class ResonaAdapter {
       sources: {},
     };
 
-    // For now, return empty stats
-    // Real implementation would query LanceDB
+    // Initialize if needed
+    if (!this.initialized) {
+      try {
+        await this.initialize();
+      } catch {
+        return stats;
+      }
+    }
+
+    if (!this.vectorStore) {
+      return stats;
+    }
+
+    try {
+      const tableStats = await this.vectorStore.getTableStats();
+      stats.totalDocuments = tableStats.count;
+
+      // Get counts by source
+      for (const source of ["maestro", "memory"] as const) {
+        const count = tableStats.sources[source] || 0;
+        if (count > 0) {
+          stats.sources[source] = count;
+        }
+      }
+    } catch {
+      // Return empty stats on error
+    }
+
     return stats;
   }
 
@@ -215,6 +331,38 @@ export class ResonaAdapter {
   }
 
   /**
+   * Convert vector search result to UnifiedResult.
+   */
+  private vectorResultToUnified(result: VectorSearchResult): UnifiedResult {
+    // Use the source field from the vector store result directly
+    // Fall back to parsing from ID only if source is empty
+    const sourceType = result.source
+      ? this.parseSourceType(result.source)
+      : this.parseSourceType(result.id);
+
+    // Parse metadata if it's a string
+    let metadata: Record<string, unknown> = {};
+    if (typeof result.metadata === "string") {
+      try {
+        metadata = JSON.parse(result.metadata);
+      } catch {
+        // Keep empty metadata
+      }
+    } else if (result.metadata) {
+      metadata = result.metadata;
+    }
+
+    return {
+      id: result.id,
+      content: result.content,
+      source: sourceType,
+      sourceId: result.id,
+      similarity: result.similarity,
+      metadata,
+    };
+  }
+
+  /**
    * Parse source type from source ID.
    *
    * Source ID formats:
@@ -223,6 +371,7 @@ export class ResonaAdapter {
    * - tana/nodeId -> "tana"
    * - maestro:fileId:index -> "maestro"
    * - maestro -> "maestro" (when sourceId is just the source type)
+   * - memory:LEARNING:filename -> "memory"
    */
   private parseSourceType(sourceId: string): SourceType {
     // Check for maestro format (uses colon separator or is just "maestro")
@@ -230,8 +379,13 @@ export class ResonaAdapter {
       return "maestro";
     }
 
+    // Check for memory format (uses colon separator: memory:TYPE:filename)
+    if (sourceId.startsWith("memory:") || sourceId === "memory") {
+      return "memory";
+    }
+
     const type = sourceId.split("/")[0];
-    if (type === "user" || type === "session" || type === "tana" || type === "maestro") {
+    if (type === "user" || type === "session" || type === "tana" || type === "maestro" || type === "memory") {
       return type;
     }
     return "user"; // Default to user
