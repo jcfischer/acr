@@ -21,6 +21,11 @@ import { SESSION_CONFIG } from "./session-types";
 import { VectorStore } from "./vector-store";
 import { EMBEDDING_CONFIG } from "./embedding-types";
 import { formatProgressBar } from "./progress";
+import { Logger } from "./logger";
+import { MetricsStore } from "./metrics";
+import { getLoggingConfig } from "./logging-config";
+import { debugTotal, startTimer } from "./debug";
+import { createHash } from "crypto";
 
 const args = process.argv.slice(2);
 
@@ -41,6 +46,10 @@ Usage:
   acr --index-all           Index all sources (Maestro + Memory + Sessions)
   acr --index-all-full      Full reindex of all sources
   acr --status              Show index status
+  acr --metrics             Show query metrics summary (7 days)
+  acr --log [n]             Show last n query log entries (default 10)
+  acr --config              Show current configuration
+  acr --metrics-reset       Reset all metrics data
 
 Options:
   -h, --help     Show this help
@@ -113,6 +122,73 @@ Examples:
     if (embeddingStats.sources.session) {
       console.log(`  Sessions: ${embeddingStats.sources.session}`);
     }
+    process.exit(0);
+  }
+
+  // --metrics: Show query metrics summary
+  if (args[0] === "--metrics") {
+    const metrics = new MetricsStore();
+    const summary = metrics.getSummary(7);
+
+    console.log("ACR Query Metrics (Last 7 Days)");
+    console.log("=".repeat(40));
+    console.log(`\nTotal queries: ${summary.totalQueries}`);
+    console.log(`Average total time: ${summary.avgTotalMs.toFixed(1)}ms`);
+    console.log(`Tier 2 escalation rate: ${(summary.tier2EscalationRate * 100).toFixed(1)}%`);
+    console.log(`\nTier 1:`);
+    console.log(`  Average matches: ${summary.tier1.avgMatches.toFixed(1)}`);
+    console.log(`  Average confidence: ${(summary.tier1.avgConfidence * 100).toFixed(1)}%`);
+    console.log(`  Average time: ${summary.tier1.avgMs.toFixed(1)}ms`);
+    if (summary.tier2EscalationRate > 0) {
+      console.log(`\nTier 2:`);
+      console.log(`  Average matches: ${summary.tier2.avgMatches.toFixed(1)}`);
+      console.log(`  Average similarity: ${(summary.tier2.avgSimilarity * 100).toFixed(1)}%`);
+      console.log(`  Average time: ${summary.tier2.avgMs.toFixed(1)}ms`);
+    }
+    metrics.close();
+    process.exit(0);
+  }
+
+  // --log [n]: Show recent query log entries
+  if (args[0] === "--log") {
+    const n = parseInt(args[1]) || 10;
+    const logger = new Logger();
+    const entries = logger.getRecentEntries(n);
+
+    if (entries.length === 0) {
+      console.log("No log entries found.");
+      process.exit(0);
+    }
+
+    console.log(`ACR Query Log (Last ${entries.length} entries)`);
+    console.log("=".repeat(50));
+    for (const entry of entries) {
+      console.log(`\n[${entry.ts}]`);
+      console.log(`  Query: "${entry.query.substring(0, 60)}${entry.query.length > 60 ? "..." : ""}"`);
+      console.log(`  Tier 1: ${entry.tier1.matches} matches, ${(entry.tier1.confidence * 100).toFixed(0)}% confidence, ${entry.tier1.ms}ms`);
+      if (entry.tier2) {
+        console.log(`  Tier 2: ${entry.tier2.matches} matches, ${(entry.tier2.topSim * 100).toFixed(0)}% top sim, ${entry.tier2.ms}ms`);
+      }
+      console.log(`  Total: ${entry.totalMs}ms`);
+    }
+    process.exit(0);
+  }
+
+  // --config: Show current configuration
+  if (args[0] === "--config") {
+    const config = getLoggingConfig();
+    console.log("ACR Configuration");
+    console.log("=".repeat(30));
+    console.log(JSON.stringify(config, null, 2));
+    process.exit(0);
+  }
+
+  // --metrics-reset: Reset all metrics data
+  if (args[0] === "--metrics-reset") {
+    const metrics = new MetricsStore();
+    metrics.reset();
+    metrics.close();
+    console.log("Metrics data has been reset.");
     process.exit(0);
   }
 
@@ -321,15 +397,62 @@ Examples:
   }
 
   const projectPath = process.cwd();
+  const queryStart = startTimer();
 
   // Run Tier 1
   const tier1Result = await runTier1Grep(prompt, projectPath);
 
+  // Track tier2 results if escalated
+  let tier2Result = null;
+  if (forceTier2 || tier1Result.escalateToTier2) {
+    tier2Result = await runTier2Semantic(tier1Result, prompt, {
+      forceActivation: forceTier2,
+    });
+  }
+
+  // Calculate total time
+  const totalMs = Date.now() - queryStart;
+  debugTotal(totalMs);
+
+  // Log query and record metrics
+  try {
+    const logger = new Logger();
+    logger.log({
+      ts: new Date().toISOString(),
+      query: prompt,
+      tier1: {
+        matches: tier1Result.matches.length,
+        confidence: tier1Result.aggregateConfidence,
+        ms: Math.round(tier1Result.latencyMs),
+      },
+      tier2: tier2Result ? {
+        matches: tier2Result.results.length,
+        topSim: tier2Result.results.length > 0 ? tier2Result.results[0].similarity : 0,
+        ms: Math.round(tier2Result.totalLatencyMs),
+      } : null,
+      totalMs,
+    });
+
+    const metrics = new MetricsStore();
+    metrics.record({
+      queryHash: createHash("sha256").update(prompt).digest("hex").substring(0, 16),
+      queryLength: prompt.length,
+      tier1Matches: tier1Result.matches.length,
+      tier1Confidence: tier1Result.aggregateConfidence,
+      tier1Ms: Math.round(tier1Result.latencyMs),
+      tier2Escalated: tier2Result !== null,
+      tier2Matches: tier2Result?.results.length,
+      tier2TopSimilarity: tier2Result?.results[0]?.similarity,
+      tier2Ms: tier2Result ? Math.round(tier2Result.totalLatencyMs) : undefined,
+      totalMs,
+    });
+    metrics.close();
+  } catch {
+    // Gracefully ignore logging/metrics errors
+  }
+
   if (jsonOutput) {
-    if (forceTier2 || tier1Result.escalateToTier2) {
-      const tier2Result = await runTier2Semantic(tier1Result, prompt, {
-        forceActivation: forceTier2,
-      });
+    if (tier2Result) {
       console.log(JSON.stringify({ tier1: tier1Result, tier2: tier2Result }, null, 2));
     } else {
       console.log(JSON.stringify({ tier1: tier1Result }, null, 2));
@@ -345,18 +468,14 @@ Examples:
     console.log(`\nTier 1 (Grep) - ${tier1Result.matches.length} matches:`);
     for (const match of tier1Result.matches.slice(0, 5)) {
       console.log(`  [${(match.confidence * 100).toFixed(0)}%] ${match.entity} in ${match.source}`);
-      if (match.context) {
-        console.log(`       "${match.context.substring(0, 80)}..."`);
+      if (match.snippet) {
+        console.log(`       "${match.snippet.substring(0, 80)}..."`);
       }
     }
   }
 
-  if (forceTier2 || tier1Result.escalateToTier2) {
-    console.log(`\nTier 2 (Semantic) - escalating...`);
-    const tier2Result = await runTier2Semantic(tier1Result, prompt, {
-      forceActivation: forceTier2,
-    });
-
+  if (tier2Result) {
+    console.log(`\nTier 2 (Semantic) - ${tier2Result.activated ? "activated" : "skipped"}:`);
     if (tier2Result.results.length > 0) {
       console.log(`Found ${tier2Result.results.length} semantic matches:`);
       for (const result of tier2Result.results.slice(0, 5)) {
@@ -369,6 +488,7 @@ Examples:
 
   console.log(`\nConfidence: ${(tier1Result.aggregateConfidence * 100).toFixed(0)}%`);
   console.log(`Escalate to Tier 2: ${tier1Result.escalateToTier2 ? "yes" : "no"}`);
+  console.log(`Total time: ${totalMs}ms`);
 }
 
 main().catch((err) => {

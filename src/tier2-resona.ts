@@ -28,6 +28,7 @@ import { constructSemanticQuery, generateAnswerFocusedQuery } from "./tier2-quer
 import { ResonaAdapter } from "./resona-adapter";
 import { rankResults } from "./tier2-ranker";
 import type { UnifiedResult } from "./tier2-types";
+import { debug, debugTier2 } from "./debug";
 
 // ============================================================================
 // Types
@@ -120,8 +121,12 @@ export async function runTier2Semantic(
   });
 
   if (!activation.shouldActivate) {
+    debug(`Tier 2: skipped (reason: ${activation.reason})`);
     return createResult([], "high_confidence", false, startTime);
   }
+
+  // Debug: log activation
+  debug(`Tier 2: activating (reason: ${activation.reason})`);
 
   // Execute semantic search
   return await executeSemanticSearch(
@@ -204,6 +209,11 @@ async function executeSemanticSearch(
       maxResults: config.maxResults,
       minSimilarity: config.minSimilarity,
     });
+
+    // Debug: log Tier 2 results
+    const topSim = rankedResults.length > 0 ? rankedResults[0].similarity : 0;
+    const latencyMs = performance.now() - startTime;
+    debugTier2(rankedResults.length, topSim, latencyMs);
 
     return createResult(rankedResults, activationReason, true, startTime);
   } catch (error) {

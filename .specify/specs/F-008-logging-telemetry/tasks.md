@@ -124,80 +124,94 @@
 
 ### Phase 5: Integration - Tier 1
 
-- [ ] **T-019**: Add timing to Tier 1 search
+- [x] **T-019**: Add timing to Tier 1 search
   - Import debug utilities
   - Wrap grep operations with startTimer/elapsed
   - Return timing info from function
+  - ✅ Completed 2026-01-27: tier1-grep.ts already had timing via performance.now()
 
-- [ ] **T-020**: Add debug output to Tier 1
+- [x] **T-020**: Add debug output to Tier 1
   - debugQuery at start
   - debugTier1 after matches found
+  - ✅ Completed 2026-01-27: Added debugQuery() and debugTier1() calls
 
-- [ ] **T-021**: Verify Tier 1 tests still pass
+- [x] **T-021**: Verify Tier 1 tests still pass
   - Run existing tier1 tests
   - Fix any regressions
+  - ✅ Completed 2026-01-27: 126 tier1/tier2 tests pass
 
 ### Phase 6: Integration - Tier 2
 
-- [ ] **T-022**: Add timing to Tier 2 semantic search
+- [x] **T-022**: Add timing to Tier 2 semantic search
   - Import debug utilities
   - Time embedding generation separately
   - Time vector search separately
+  - ✅ Completed 2026-01-27: tier2-resona.ts already had timing via performance.now()
 
-- [ ] **T-023**: Add debug output to Tier 2
+- [x] **T-023**: Add debug output to Tier 2
   - Debug escalation trigger
   - Debug embedding dimensions
   - Debug search result count
   - Debug top similarity score
+  - ✅ Completed 2026-01-27: Added debug() and debugTier2() calls
 
-- [ ] **T-024**: Verify Tier 2 tests still pass
+- [x] **T-024**: Verify Tier 2 tests still pass
   - Run existing tier2/resona tests
   - Fix any regressions
+  - ✅ Completed 2026-01-27: 126 tier1/tier2 tests pass
 
 ### Phase 7: Integration - Main Query Flow
 
-- [ ] **T-025**: Wire up Logger in CLI
+- [x] **T-025**: Wire up Logger in CLI
   - Import Logger class
   - Create instance at startup
   - Build QueryLogEntry after query
   - Call logger.log()
+  - ✅ Completed 2026-01-27: Logger integrated into cli.ts query flow
 
-- [ ] **T-026**: Wire up MetricsStore in CLI
+- [x] **T-026**: Wire up MetricsStore in CLI
   - Import MetricsStore class
   - Create instance at startup
   - Build QueryMetrics after query
   - Hash query with SHA256
   - Call metrics.record()
+  - ✅ Completed 2026-01-27: MetricsStore integrated with SHA256 hashing
 
-- [ ] **T-027**: Add total time debug output
+- [x] **T-027**: Add total time debug output
   - debugTotal(ms) at end of query
+  - ✅ Completed 2026-01-27: debugTotal() called after query completion
 
 ### Phase 8: CLI Commands
 
-- [ ] **T-028**: Add `--metrics` command
+- [x] **T-028**: Add `--metrics` command
   - Instantiate MetricsStore
   - Call getSummary(7)
   - Format and print summary table
+  - ✅ Completed 2026-01-27: Shows 7-day metrics summary
 
-- [ ] **T-029**: Add `--log [n]` command
+- [x] **T-029**: Add `--log [n]` command
   - Read last n lines from log file (default 10)
   - Parse JSONL entries
   - Pretty-print with timestamps
+  - ✅ Completed 2026-01-27: Uses Logger.getRecentEntries()
 
-- [ ] **T-030**: Add `--config` command
+- [x] **T-030**: Add `--config` command
   - Call getLoggingConfig()
   - Print as formatted JSON
+  - ✅ Completed 2026-01-27: Shows full config as JSON
 
-- [ ] **T-031**: Add `--metrics-reset` command
+- [x] **T-031**: Add `--metrics-reset` command
   - Instantiate MetricsStore
   - Call reset()
   - Print confirmation message
+  - ✅ Completed 2026-01-27: Resets metrics with confirmation
 
-- [ ] **T-032**: Create CLI command tests
+- [x] **T-032**: Create CLI command tests
   - Test --metrics output format
   - Test --log with various n values
   - Test --config shows current settings
   - Test --metrics-reset confirmation
+  - ✅ Completed 2026-01-27: 7 tests in tests/cli-commands.test.ts
 
 ### Phase 9: Config File Tier Overrides
 

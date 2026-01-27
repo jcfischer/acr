@@ -17,6 +17,7 @@ import {
   SEARCHABLE_EXTENSIONS,
   EXCLUDED_DIRS,
 } from "./config";
+import { debugQuery, debugTier1 } from "./debug";
 
 // ============================================================================
 // T-5.1: Result Aggregator
@@ -130,6 +131,9 @@ export async function runTier1Grep(
   // Extract entities from prompt and context
   const searchContext = extractEntities(prompt, cwd);
 
+  // Debug: log query and extracted entities
+  debugQuery(prompt, searchContext.entities);
+
   // If no entities found, return early
   if (searchContext.entities.length === 0) {
     const latencyMs = performance.now() - startTime;
@@ -157,8 +161,13 @@ export async function runTier1Grep(
   // Calculate latency
   const latencyMs = performance.now() - startTime;
 
-  // Aggregate and return
-  return aggregateResults(limitedMatches, searchContext, latencyMs);
+  // Aggregate results
+  const result = aggregateResults(limitedMatches, searchContext, latencyMs);
+
+  // Debug: log Tier 1 results
+  debugTier1(result.matches.length, result.aggregateConfidence, latencyMs);
+
+  return result;
 }
 
 // ============================================================================
