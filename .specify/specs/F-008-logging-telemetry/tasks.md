@@ -14,12 +14,13 @@
   - Export `LoggingConfig` type
   - ✅ Completed 2026-01-27: Created with Zod v4 transform pattern for proper nested defaults
 
-- [ ] **T-002**: Implement `getLoggingConfig()` function
+- [x] **T-002**: Implement `getLoggingConfig()` function
   - Config path: `~/.config/acr/config.json`
   - Create directory if missing
   - Parse JSON with Zod validation
   - Cache config (load once per process)
   - Write default config on first run
+  - ✅ Completed 2026-01-27: Implemented with expandPath(), resetConfigCache(), and graceful error handling
 
 - [ ] **T-003**: Export helper functions
   - `isDebugEnabled()` - returns config.debug

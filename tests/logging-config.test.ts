@@ -4,7 +4,7 @@
  * TDD RED: Tests written BEFORE implementation
  */
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import {
   LoggingConfigSchema,
   type LoggingConfig,
@@ -241,6 +241,211 @@ describe("ACR Logging Config", () => {
       // For strict parsing, we expect this to fail
       // But Zod's default is to strip unknown keys, so this passes
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe("getLoggingConfig", () => {
+    // Import after tests are defined (will fail until implementation exists)
+    const {
+      getLoggingConfig,
+      expandPath,
+      isDebugEnabled,
+      debug,
+      resetConfigCache,
+      CONFIG_PATH,
+    } = require("../src/logging-config") as typeof import("../src/logging-config");
+
+    const fs = require("fs");
+    const path = require("path");
+    const os = require("os");
+
+    // Test directory for isolation
+    let testConfigDir: string;
+    let testConfigPath: string;
+
+    beforeEach(() => {
+      // Reset cache before each test
+      resetConfigCache?.();
+
+      // Create temp directory for test config
+      testConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), "acr-test-"));
+      testConfigPath = path.join(testConfigDir, "config.json");
+    });
+
+    afterEach(() => {
+      // Cleanup temp directory
+      if (testConfigDir && fs.existsSync(testConfigDir)) {
+        fs.rmSync(testConfigDir, { recursive: true, force: true });
+      }
+    });
+
+    describe("expandPath", () => {
+      it("expands ~ to HOME directory", () => {
+        const result = expandPath("~/.config/acr/test.log");
+        expect(result).toBe(
+          path.join(os.homedir(), ".config/acr/test.log")
+        );
+      });
+
+      it("returns path unchanged if no ~", () => {
+        const result = expandPath("/absolute/path/test.log");
+        expect(result).toBe("/absolute/path/test.log");
+      });
+
+      it("only expands ~ at the beginning", () => {
+        const result = expandPath("/some/~path/test.log");
+        expect(result).toBe("/some/~path/test.log");
+      });
+    });
+
+    describe("getLoggingConfig", () => {
+      it("returns default config when no config file exists", () => {
+        const config = getLoggingConfig(testConfigPath);
+        expect(config.debug).toBe(false);
+        expect(config.logging.enabled).toBe(true);
+        expect(config.logging.path).toBe("~/.config/acr/acr.log");
+        expect(config.logging.maxSize).toBe(10_000_000);
+        expect(config.logging.maxFiles).toBe(3);
+        expect(config.metrics.enabled).toBe(true);
+        expect(config.metrics.path).toBe("~/.config/acr/metrics.db");
+        expect(config.metrics.retentionDays).toBe(30);
+      });
+
+      it("creates config directory if missing", () => {
+        const nestedPath = path.join(testConfigDir, "nested", "deep", "config.json");
+        getLoggingConfig(nestedPath);
+        expect(fs.existsSync(path.dirname(nestedPath))).toBe(true);
+      });
+
+      it("writes default config on first run", () => {
+        getLoggingConfig(testConfigPath);
+        expect(fs.existsSync(testConfigPath)).toBe(true);
+
+        const content = JSON.parse(fs.readFileSync(testConfigPath, "utf-8"));
+        expect(content.debug).toBe(false);
+        expect(content.logging.enabled).toBe(true);
+      });
+
+      it("parses existing JSON config with Zod validation", () => {
+        const customConfig = {
+          debug: true,
+          logging: {
+            maxSize: 5_000_000,
+          },
+        };
+        fs.writeFileSync(testConfigPath, JSON.stringify(customConfig));
+
+        const config = getLoggingConfig(testConfigPath);
+        expect(config.debug).toBe(true);
+        expect(config.logging.maxSize).toBe(5_000_000);
+        // Defaults should still apply for unspecified fields
+        expect(config.logging.enabled).toBe(true);
+        expect(config.logging.path).toBe("~/.config/acr/acr.log");
+      });
+
+      it("caches config and returns same object", () => {
+        const config1 = getLoggingConfig(testConfigPath);
+        const config2 = getLoggingConfig(testConfigPath);
+        expect(config1).toBe(config2); // Same reference
+      });
+
+      it("handles invalid JSON gracefully", () => {
+        fs.writeFileSync(testConfigPath, "{ invalid json }");
+        // Should return defaults on parse error
+        const config = getLoggingConfig(testConfigPath);
+        expect(config.debug).toBe(false);
+        expect(config.logging.enabled).toBe(true);
+      });
+
+      it("handles validation errors gracefully", () => {
+        fs.writeFileSync(
+          testConfigPath,
+          JSON.stringify({ debug: "not-a-boolean" })
+        );
+        // Should return defaults on validation error
+        const config = getLoggingConfig(testConfigPath);
+        expect(config.debug).toBe(false);
+      });
+
+      it("uses default path when called without argument", () => {
+        // This test verifies the function has a default parameter
+        const config = getLoggingConfig();
+        expect(config).toBeDefined();
+        expect(config.logging).toBeDefined();
+      });
+    });
+
+    describe("isDebugEnabled", () => {
+      it("returns false when debug is disabled", () => {
+        fs.writeFileSync(
+          testConfigPath,
+          JSON.stringify({ debug: false })
+        );
+        resetConfigCache?.();
+        const result = isDebugEnabled(testConfigPath);
+        expect(result).toBe(false);
+      });
+
+      it("returns true when debug is enabled", () => {
+        fs.writeFileSync(
+          testConfigPath,
+          JSON.stringify({ debug: true })
+        );
+        resetConfigCache?.();
+        const result = isDebugEnabled(testConfigPath);
+        expect(result).toBe(true);
+      });
+    });
+
+    describe("debug", () => {
+      let originalStderr: typeof process.stderr.write;
+      let stderrOutput: string[];
+
+      beforeEach(() => {
+        stderrOutput = [];
+        originalStderr = process.stderr.write;
+        process.stderr.write = ((chunk: string | Uint8Array) => {
+          stderrOutput.push(chunk.toString());
+          return true;
+        }) as typeof process.stderr.write;
+      });
+
+      afterEach(() => {
+        process.stderr.write = originalStderr;
+      });
+
+      it("outputs to stderr when debug enabled", () => {
+        fs.writeFileSync(
+          testConfigPath,
+          JSON.stringify({ debug: true })
+        );
+        resetConfigCache?.();
+        debug("test message", testConfigPath);
+        expect(stderrOutput.some((s) => s.includes("test message"))).toBe(true);
+      });
+
+      it("outputs nothing when debug disabled", () => {
+        fs.writeFileSync(
+          testConfigPath,
+          JSON.stringify({ debug: false })
+        );
+        resetConfigCache?.();
+        debug("test message", testConfigPath);
+        expect(stderrOutput.length).toBe(0);
+      });
+
+      it("handles multiple arguments", () => {
+        fs.writeFileSync(
+          testConfigPath,
+          JSON.stringify({ debug: true })
+        );
+        resetConfigCache?.();
+        debug("arg1", "arg2", 123, testConfigPath);
+        const output = stderrOutput.join("");
+        expect(output.includes("arg1")).toBe(true);
+        expect(output.includes("arg2")).toBe(true);
+        expect(output.includes("123")).toBe(true);
+      });
     });
   });
 });
