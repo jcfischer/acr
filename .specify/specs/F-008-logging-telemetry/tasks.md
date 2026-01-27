@@ -22,89 +22,105 @@
   - Write default config on first run
   - ✅ Completed 2026-01-27: Implemented with expandPath(), resetConfigCache(), and graceful error handling
 
-- [ ] **T-003**: Export helper functions
+- [x] **T-003**: Export helper functions
   - `isDebugEnabled()` - returns config.debug
   - `debug(...args)` - conditional stderr output
   - `expandPath(p)` - replace ~ with HOME
+  - ✅ Completed 2026-01-27: All helpers implemented in logging-config.ts
 
-- [ ] **T-004**: Create `tests/logging-config.test.ts`
+- [x] **T-004**: Create `tests/logging-config.test.ts`
   - Test default values when no config file
   - Test partial config merging
   - Test validation error handling
   - Test path expansion
+  - ✅ Completed 2026-01-27: 30+ tests covering schema, loading, and helpers
 
 ### Phase 2: Logger Module
 
-- [ ] **T-005**: Create `src/logger.ts` with Logger class
+- [x] **T-005**: Create `src/logger.ts` with Logger class
   - Define `QueryLogEntry` interface
   - Constructor loads config
+  - ✅ Completed 2026-01-27: Created with TDD approach
 
-- [ ] **T-006**: Implement `log(entry)` method
+- [x] **T-006**: Implement `log(entry)` method
   - Check if logging enabled
   - Expand path
   - Call rotateIfNeeded
   - Append JSONL entry
+  - ✅ Completed 2026-01-27: JSONL append with directory creation
 
-- [ ] **T-007**: Implement `rotateIfNeeded(path)` method
+- [x] **T-007**: Implement `rotateIfNeeded(path)` method
   - Check file size against maxSize
   - Rotate files: path → path.1, path.1 → path.2, etc.
   - Keep only maxFiles rotated files
+  - ✅ Completed 2026-01-27: Full rotation chain with maxFiles limit
 
-- [ ] **T-008**: Create `tests/logger.test.ts`
+- [x] **T-008**: Create `tests/logger.test.ts`
   - Test JSONL writing format
   - Test rotation at maxSize threshold
   - Test maxFiles limit enforcement
   - Test disabled logging no-op
+  - ✅ Completed 2026-01-27: 13 tests covering all functionality + getRecentEntries()
 
 ### Phase 3: Metrics Module
 
-- [ ] **T-009**: Create `src/metrics.ts` with interfaces
+- [x] **T-009**: Create `src/metrics.ts` with interfaces
   - Define `QueryMetrics` interface
   - Define `MetricsSummary` interface
+  - ✅ Completed 2026-01-27: Both interfaces defined with full typing
 
-- [ ] **T-010**: Implement `MetricsStore` class constructor
+- [x] **T-010**: Implement `MetricsStore` class constructor
   - Open SQLite at config path
   - Call migrate() on init
+  - ✅ Completed 2026-01-27: Using bun:sqlite with auto-directory creation
 
-- [ ] **T-011**: Implement `migrate()` method
+- [x] **T-011**: Implement `migrate()` method
   - Create queries table with all columns
   - Create indexes on timestamp, query_hash
+  - ✅ Completed 2026-01-27: Full schema with 12 columns + 2 indexes
 
-- [ ] **T-012**: Implement `record(metrics)` method
+- [x] **T-012**: Implement `record(metrics)` method
   - Check if metrics enabled
   - Insert row with all fields
   - Call cleanup() after insert
+  - ✅ Completed 2026-01-27: Prepared statement with null handling
 
-- [ ] **T-013**: Implement `cleanup()` method
+- [x] **T-013**: Implement `cleanup()` method
   - Calculate cutoff from retentionDays
   - Delete records older than cutoff
+  - ✅ Completed 2026-01-27: Automatic cleanup on each record()
 
-- [ ] **T-014**: Implement `getSummary(days)` method
+- [x] **T-014**: Implement `getSummary(days)` method
   - Aggregate query with AVG, COUNT
   - Return MetricsSummary object
+  - ✅ Completed 2026-01-27: Full aggregation with conditional tier2 averages
 
-- [ ] **T-015**: Implement `reset()` method
+- [x] **T-015**: Implement `reset()` method
   - Drop queries table
   - Re-run migrate()
+  - ✅ Completed 2026-01-27: Clean reset with table recreation
 
-- [ ] **T-016**: Create `tests/metrics.test.ts`
+- [x] **T-016**: Create `tests/metrics.test.ts`
   - Test record insertion
   - Test summary aggregation math
   - Test retention cleanup
   - Test reset functionality
+  - ✅ Completed 2026-01-27: 14 tests covering all MetricsStore functionality
 
 ### Phase 4: Debug Module
 
-- [ ] **T-017**: Create `src/debug.ts` utilities
+- [x] **T-017**: Create `src/debug.ts` utilities
   - Re-export debug() from logging-config
   - `startTimer()` - returns Date.now()
   - `elapsed(start)` - returns ms difference
+  - ✅ Completed 2026-01-27: Timing utilities with re-exports
 
-- [ ] **T-018**: Add formatted debug helpers
+- [x] **T-018**: Add formatted debug helpers
   - `debugQuery(query, entities)`
   - `debugTier1(matches, confidence, ms)`
   - `debugTier2(matches, topSim, ms)`
   - `debugTotal(ms)`
+  - ✅ Completed 2026-01-27: All helpers + debugEmbedding() for completeness
 
 ### Phase 5: Integration - Tier 1
 
