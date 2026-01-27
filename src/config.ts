@@ -2,7 +2,10 @@
  * ACR Tier 1 - Configuration
  *
  * Stopwords, thresholds, and configuration for grep-based entity detection.
+ * Supports config file overrides via ~/.config/acr/config.json
  */
+
+import { getLoggingConfig } from "./logging-config";
 
 // ============================================================================
 // Stopwords - Common words to filter from entity extraction
@@ -236,4 +239,43 @@ export function isValidEntityLength(entity: string): boolean {
     entity.length >= ACR_CONFIG.minEntityLength &&
     entity.length <= ACR_CONFIG.maxEntityLength
   );
+}
+
+/**
+ * Tier 1 config type (mutable version for overrides)
+ */
+export type Tier1Config = {
+  minEntityLength: number;
+  maxEntityLength: number;
+  tier2EscalationThreshold: number;
+  grepTimeoutMs: number;
+  contextLines: number;
+  maxMatches: number;
+  maxFileSizeBytes: number;
+  enabled: boolean;
+};
+
+/**
+ * Get Tier 1 config with overrides applied.
+ * Priority: config file > env vars > defaults
+ */
+export function getTier1Config(): Tier1Config {
+  const loggingConfig = getLoggingConfig();
+  const tier1Overrides = loggingConfig.tier1 ?? {};
+
+  return {
+    minEntityLength: ACR_CONFIG.minEntityLength,
+    maxEntityLength: ACR_CONFIG.maxEntityLength,
+    tier2EscalationThreshold: ACR_CONFIG.tier2EscalationThreshold,
+    contextLines: ACR_CONFIG.contextLines,
+    maxFileSizeBytes: ACR_CONFIG.maxFileSizeBytes,
+    // Config file overrides (highest priority)
+    grepTimeoutMs: tier1Overrides.grepTimeoutMs ?? ACR_CONFIG.grepTimeoutMs,
+    maxMatches: tier1Overrides.maxMatches ?? ACR_CONFIG.maxMatches,
+    // Env var override for enabled (lower priority than config file)
+    enabled:
+      tier1Overrides.enabled !== undefined
+        ? tier1Overrides.enabled
+        : process.env.ACR_ENABLED !== "false",
+  };
 }

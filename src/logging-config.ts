@@ -66,6 +66,7 @@ const Tier1OverridesSchema = z.object({
  */
 const Tier2OverridesSchema = z.object({
   enabled: z.boolean().optional(),
+  activationThreshold: z.number().optional(),
   searchTimeout: z.number().optional(),
   maxResults: z.number().optional(),
   minSimilarity: z.number().optional(),

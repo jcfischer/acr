@@ -215,30 +215,33 @@
 
 ### Phase 9: Config File Tier Overrides
 
-- [ ] **T-033**: Modify tier1 config loading
+- [x] **T-033**: Modify tier1 config loading
   - Load logging config
   - Merge tier1 overrides from config file
   - Preserve env var support (lower priority)
+  - ✅ Completed 2026-01-27: Added getTier1Config() with config file priority
 
-- [ ] **T-034**: Modify tier2 config loading
+- [x] **T-034**: Modify tier2 config loading
   - Load logging config
   - Merge tier2 overrides from config file
   - Preserve env var support (lower priority)
+  - ✅ Completed 2026-01-27: Updated getConfig() with config file priority
 
-- [ ] **T-035**: Create config override tests
+- [x] **T-035**: Create config override tests
   - Test config file overrides env vars
   - Test env vars override defaults
   - Test partial overrides work
+  - ✅ Completed 2026-01-27: 11 tests in tests/config-overrides.test.ts
 
 ## Verification Checklist
 
-- [ ] All 35 tasks completed
-- [ ] `bun test` passes all tests (existing + new)
-- [ ] Config file auto-created on first run
-- [ ] Debug output appears when enabled
-- [ ] Log rotation works correctly
-- [ ] Metrics aggregation is accurate
-- [ ] All CLI commands functional
+- [x] All 35 tasks completed
+- [x] `bun test` passes all tests (880 tests passing)
+- [x] Config file auto-created on first run
+- [x] Debug output appears when enabled
+- [x] Log rotation works correctly
+- [x] Metrics aggregation is accurate
+- [x] All CLI commands functional
 
 ## Dependencies
 

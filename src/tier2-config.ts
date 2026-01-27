@@ -2,9 +2,11 @@
  * ACR Tier 2 - Configuration
  *
  * Thresholds, trigger phrases, and configuration for semantic retrieval.
+ * Supports config file overrides via ~/.config/acr/config.json
  */
 
 import { join } from "path";
+import { getLoggingConfig } from "./logging-config";
 
 // ============================================================================
 // Default Configuration
@@ -80,11 +82,44 @@ export function isTriggerPhrase(prompt: string): boolean {
 }
 
 /**
- * Get current configuration with environment overrides
+ * Tier 2 config type (mutable version for overrides)
  */
-export function getConfig(): typeof TIER2_CONFIG {
+export type Tier2Config = {
+  activationThreshold: number;
+  searchTimeout: number;
+  maxResults: number;
+  minSimilarity: number;
+  sourcePriority: {
+    user: number;
+    session: number;
+    tana: number;
+  };
+  embeddingDbPath: string;
+  sessionHistoryPath: string;
+  enabled: boolean;
+};
+
+/**
+ * Get Tier 2 config with overrides applied.
+ * Priority: config file > env vars > defaults
+ */
+export function getConfig(): Tier2Config {
+  const loggingConfig = getLoggingConfig();
+  const tier2Overrides = loggingConfig.tier2 ?? {};
+
   return {
-    ...TIER2_CONFIG,
-    enabled: process.env.ACR_TIER2_ENABLED !== "false",
+    activationThreshold:
+      tier2Overrides.activationThreshold ?? TIER2_CONFIG.activationThreshold,
+    searchTimeout: tier2Overrides.searchTimeout ?? TIER2_CONFIG.searchTimeout,
+    maxResults: tier2Overrides.maxResults ?? TIER2_CONFIG.maxResults,
+    minSimilarity: tier2Overrides.minSimilarity ?? TIER2_CONFIG.minSimilarity,
+    sourcePriority: { ...TIER2_CONFIG.sourcePriority },
+    embeddingDbPath: TIER2_CONFIG.embeddingDbPath,
+    sessionHistoryPath: TIER2_CONFIG.sessionHistoryPath,
+    // Env var override for enabled (lower priority than config file)
+    enabled:
+      tier2Overrides.enabled !== undefined
+        ? tier2Overrides.enabled
+        : process.env.ACR_TIER2_ENABLED !== "false",
   };
 }
