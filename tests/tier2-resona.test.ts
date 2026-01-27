@@ -33,12 +33,13 @@ function createMockGrepResult(
     })),
     aggregateConfidence,
     searchContext: {
-      projectPath: "/work/test-project",
-      prompt: "test prompt",
+      workingDir: "/work/test-project",
+      rawPrompt: "test prompt",
+      entities: [],
+      recentFiles: [],
     },
     latencyMs: 10,
     escalateToTier2: aggregateConfidence < 0.7,
-    tier1Entities: [],
   };
 }
 
@@ -158,7 +159,7 @@ describe("ACR Tier 2 Resona Integration", () => {
   describe("query construction integration", () => {
     it("includes project context in search", async () => {
       const tier1Result = createMockGrepResult(0.5, 1);
-      tier1Result.searchContext.projectPath = "/work/my-special-project";
+      tier1Result.searchContext.workingDir = "/work/my-special-project";
 
       const result = await runTier2Semantic(
         tier1Result,

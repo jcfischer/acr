@@ -202,8 +202,8 @@ describe("EMBEDDING_CONFIG", () => {
 
   it("has sensible defaults", () => {
     expect(EMBEDDING_CONFIG.ollamaUrl).toBe("http://localhost:11434");
-    expect(EMBEDDING_CONFIG.model).toBe("nomic-embed-text");
-    expect(EMBEDDING_CONFIG.dimensions).toBe(768);
+    expect(EMBEDDING_CONFIG.model).toBe("bge-m3");
+    expect(EMBEDDING_CONFIG.dimensions).toBe(1024);
     expect(EMBEDDING_CONFIG.batchSize).toBeGreaterThan(0);
     expect(EMBEDDING_CONFIG.timeout).toBeGreaterThan(0);
   });

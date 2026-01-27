@@ -299,3 +299,113 @@ export async function getSessionIndexStatus(): Promise<{
     turnCount,
   };
 }
+
+// ============================================================================
+// Session Parsing Utilities (for testing and direct parsing)
+// ============================================================================
+
+/**
+ * Parsed JSONL entry
+ */
+export interface ParsedEntry {
+  type: string;
+  message?: string;
+  summary?: {
+    conversation_summary?: string;
+    project?: string;
+  };
+  [key: string]: unknown;
+}
+
+/**
+ * Session synopsis extracted from session history
+ */
+export interface SessionSynopsis {
+  sessionId: string;
+  projectPath: string;
+  synopsis: string;
+  createdAt: Date;
+  messageCount: number;
+}
+
+/**
+ * Parse JSONL content into entries
+ *
+ * @param content - JSONL string content
+ * @returns Array of parsed entries
+ */
+export function parseSessionHistory(content: string): ParsedEntry[] {
+  if (!content || content.trim() === "") {
+    return [];
+  }
+
+  const entries: ParsedEntry[] = [];
+  const lines = content.split("\n").filter((line) => line.trim() !== "");
+
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line);
+      if (typeof parsed === "object" && parsed !== null) {
+        entries.push(parsed as ParsedEntry);
+      }
+    } catch {
+      // Skip invalid JSON lines
+    }
+  }
+
+  return entries;
+}
+
+/**
+ * Extract synopsis from parsed session entries
+ *
+ * @param entries - Parsed JSONL entries
+ * @param sessionId - Session identifier
+ * @param projectPath - Project path
+ * @returns SessionSynopsis or null if no content
+ */
+export function extractSynopsis(
+  entries: ParsedEntry[],
+  sessionId: string,
+  projectPath: string
+): SessionSynopsis | null {
+  if (entries.length === 0) {
+    return null;
+  }
+
+  // Find summary entries (prefer last one)
+  const summaries = entries.filter((e) => e.type === "summary");
+  const lastSummary = summaries.length > 0 ? summaries[summaries.length - 1] : null;
+
+  let synopsis: string;
+
+  if (lastSummary?.summary?.conversation_summary) {
+    synopsis = lastSummary.summary.conversation_summary;
+  } else {
+    // Fall back to first user message
+    const userMessages = entries.filter((e) => e.type === "user");
+    if (userMessages.length > 0 && userMessages[0].message) {
+      synopsis = userMessages[0].message;
+    } else {
+      synopsis = "No synopsis available";
+    }
+  }
+
+  // Truncate long synopsis (max 500 chars)
+  if (synopsis.length > 500) {
+    synopsis = synopsis.slice(0, 497) + "...";
+  }
+
+  // Count messages (user + assistant)
+  const messageCount = entries.filter(
+    (e) => e.type === "user" || e.type === "assistant"
+  ).length;
+
+  return {
+    sessionId,
+    projectPath,
+    synopsis,
+    createdAt: new Date(),
+    messageCount,
+  };
+}
