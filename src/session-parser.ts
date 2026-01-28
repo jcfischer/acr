@@ -303,6 +303,13 @@ function isTrivialQuestion(content: string): boolean {
     /^search for/i,
     /^look for/i,
     /^find the/i,
+    // Compaction/summarization prompts (Claude Code internal)
+    /synopsize/i,
+    /^summarize (the |our |this )?session/i,
+    /^summarize (the |our |this )?recent work/i,
+    /^continue from where we left/i,
+    /^continue the conversation/i,
+    /This session is being continued from a previous/i,
   ];
 
   for (const pattern of trivialPatterns) {
