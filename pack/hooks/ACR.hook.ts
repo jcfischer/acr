@@ -39,8 +39,57 @@ const ACR_BINARY = join(process.env.HOME || '', 'bin/acr');
 // Minimum prompt length to trigger ACR (avoid noise on short inputs)
 const MIN_PROMPT_LENGTH = 10;
 
+// Maximum prompt length for conversational commands (skip ACR for short action commands)
+const MAX_CONVERSATIONAL_LENGTH = 50;
+
 // Maximum query length to pass to ACR (truncate very long prompts)
 const MAX_QUERY_LENGTH = 500;
+
+/**
+ * Check if prompt is a conversational/action command that doesn't need ACR
+ * These are short commands that are part of ongoing conversation
+ */
+function isConversationalCommand(prompt: string): boolean {
+  const trimmed = prompt.trim().toLowerCase();
+
+  // Skip very short prompts (handled elsewhere, but be safe)
+  if (trimmed.length < MIN_PROMPT_LENGTH) return true;
+
+  // Only check prompts under threshold length
+  if (trimmed.length > MAX_CONVERSATIONAL_LENGTH) return false;
+
+  // Action command patterns (git, deploy, confirm, etc.)
+  const actionPatterns = [
+    // Git operations
+    /^(commit|push|pull|merge|rebase|cherry-pick|stash)/i,
+    /^git\s+(commit|push|pull|merge|status|diff|log|add)/i,
+    /(commit|push)\s+(and\s+)?(deploy|merge|push|continue)/i,
+    /^merge\s+(main|master|develop)/i,
+
+    // Confirmations and continuations
+    /^(yes|no|ok|okay|sure|yep|nope|yup|nah)\b/i,
+    /^(yes|no|ok)[,.]?\s+(do it|go ahead|proceed|continue|add|commit|push)/i,
+    /^(sounds good|looks good|lgtm|ship it|do it|go ahead|proceed)/i,
+    /^(continue|next|done|finish|complete|skip)/i,
+
+    // Short action commands
+    /^(add|remove|delete|update|fix|run|test|build|deploy)\s+(it|this|that|them|all)/i,
+    /^(add all|commit all|push all|delete all|run all)/i,
+    /^(show|list|check|verify|validate)\s+(it|this|that|them|status)/i,
+
+    // Follow-up commands in conversation
+    /^(also|and|then|now|next)\s+(commit|push|add|delete|run)/i,
+    /changes?\s*(continue|and\s+continue)/i,
+  ];
+
+  for (const pattern of actionPatterns) {
+    if (pattern.test(trimmed)) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 interface ACRMatch {
   entity: string;
@@ -117,6 +166,11 @@ async function main() {
 
     if (!prompt || prompt.length < MIN_PROMPT_LENGTH) {
       // Skip very short prompts
+      process.exit(0);
+    }
+
+    // Skip conversational/action commands that don't need context
+    if (isConversationalCommand(prompt)) {
       process.exit(0);
     }
 
