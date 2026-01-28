@@ -1,9 +1,50 @@
+---
+name: ACR - Autonomous Contextual Recall
+pack-id: jcfischer-acr-v1.0.0
+version: 1.0.0
+author: jcfischer
+description: Two-tier hybrid retrieval (grep + semantic) for automatic context injection
+type: infrastructure
+purpose-type: [context-retrieval, memory, session-history]
+platform: claude-code
+dependencies: []
+optional-dependencies: [ollama]
+keywords: [acr, context, recall, semantic-search, grep, embeddings, memory]
+---
+
 # ACR - Autonomous Contextual Recall
 
 > *"The metric is not 'did we find relevant context?' but 'did the AI act like someone who knows you?'"*
 > — ACR Council Debate, January 2026
 
 Two-tier architecture for automatic context retrieval in AI assistant sessions.
+
+## Pack Installation
+
+See [INSTALL.md](./INSTALL.md) for AI-guided installation.
+See [VERIFY.md](./VERIFY.md) for verification checklist.
+
+### Quick Install
+
+```bash
+# Clone the repo
+git clone https://github.com/jcfischer/acr.git
+cd acr
+
+# Install dependencies and build
+bun install
+bun build src/cli.ts --compile --outfile ~/bin/acr
+
+# Install hook
+cp pack/hooks/ACR.hook.ts ~/.claude/hooks/
+chmod +x ~/.claude/hooks/ACR.hook.ts
+
+# Add to ~/.claude/settings.json (merge with existing hooks):
+# "UserPromptSubmit": [{"type": "command", "command": "bun run $HOME/.claude/hooks/ACR.hook.ts"}]
+
+# Index session history (optional, for Tier 2)
+~/bin/acr --index-sessions
+```
 
 ## Philosophy
 

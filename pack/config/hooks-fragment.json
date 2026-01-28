@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "bun run $HOME/.claude/hooks/ACR.hook.ts"
+      }
+    ]
+  }
+}
